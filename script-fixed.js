@@ -38,13 +38,7 @@ class MD2Card {
         // 颜色选择
         this.colorButtons = document.querySelectorAll('.color-btn');
         
-        // 模式切换
-        this.xiaohongshuModeBtn = document.getElementById('xiaohongshuModeBtn');
-        this.longImageModeBtn = document.getElementById('longImageModeBtn');
-        
         // 导出按钮
-        this.exportLongBtn = document.getElementById('exportLongBtn');
-        this.exportXiaohongshuBtn = document.getElementById('exportXiaohongshuBtn');
         this.batchProcessBtn = document.getElementById('batchProcessBtn');
         
         // 分页控制
@@ -156,178 +150,242 @@ class MD2Card {
             miyazaki_style: { name: '宫崎骏风格', class: 'miyazaki-style-template' },
             github_readme: { name: 'GitHub README', class: 'github-readme-template' },
             discord_embed: { name: 'Discord嵌入', class: 'discord-embed-template' },
-            medium_article: { name: 'Medium文章', class: 'medium-article-template' },
-            // 拟态风格
-            neumorphism: { name: '拟态设计', class: 'neumorphism-template' }
+            medium_article: { name: 'Medium文章', class: 'medium-article-template' }
         };
     }
 
     initEventListeners() {
-        // Markdown输入事件
-        this.markdownInput.addEventListener('input', () => this.updatePreview());
+        // 编辑器输入事件
+        if (this.markdownInput) {
+            this.markdownInput.addEventListener('input', () => this.updatePreview());
+        }
         
         // 模板选择事件
-        this.templateSelect.addEventListener('change', () => {
-            // 恢复该模板之前选择的字体
-            const currentTemplate = this.templateSelect.value;
-            if (this.templateFonts[currentTemplate]) {
-                this.fontSelect.value = this.templateFonts[currentTemplate];
-            } else {
-                this.fontSelect.value = 'default';
-            }
-            this.updatePreview();
-        });
-        
-        // 主题色选择事件
-        this.colorButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.colorButtons.forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                this.currentTheme = e.target.dataset.theme;
+        if (this.templateSelect) {
+            this.templateSelect.addEventListener('change', () => {
                 this.updatePreview();
             });
-        });
+        }
         
-        // 样式控制滑块事件
-        this.fontSizeSlider.addEventListener('input', (e) => {
-            this.fontSizeValue.textContent = e.target.value;
-            this.updatePreview();
-        });
+        // 滑块事件
+        if (this.fontSizeSlider) {
+            this.fontSizeSlider.addEventListener('input', (e) => {
+                if (this.fontSizeValue) {
+                    this.fontSizeValue.textContent = e.target.value;
+                }
+                this.updatePreview();
+            });
+        }
         
-        this.paddingSlider.addEventListener('input', (e) => {
-            this.paddingValue.textContent = e.target.value;
-            this.updatePreview();
-        });
+        if (this.paddingSlider) {
+            this.paddingSlider.addEventListener('input', (e) => {
+                if (this.paddingValue) {
+                    this.paddingValue.textContent = e.target.value;
+                }
+                this.updatePreview();
+            });
+        }
         
-        this.borderRadiusSlider.addEventListener('input', (e) => {
-            this.borderRadiusValue.textContent = e.target.value;
-            this.updatePreview();
-        });
+        if (this.borderRadiusSlider) {
+            this.borderRadiusSlider.addEventListener('input', (e) => {
+                if (this.borderRadiusValue) {
+                    this.borderRadiusValue.textContent = e.target.value;
+                }
+                this.updatePreview();
+            });
+        }
         
-        this.cardWidthSlider.addEventListener('input', (e) => {
-            this.cardWidthValue.textContent = e.target.value;
-            this.updatePreview();
-        });
+        if (this.cardWidthSlider) {
+            this.cardWidthSlider.addEventListener('input', (e) => {
+                if (this.cardWidthValue) {
+                    this.cardWidthValue.textContent = e.target.value;
+                }
+                this.updatePreview();
+            });
+        }
         
-        this.cardHeightSlider.addEventListener('input', (e) => {
-            this.cardHeightValue.textContent = e.target.value;
-            this.updatePreview();
-        });
-        
-        // 模式切换事件
-        this.xiaohongshuModeBtn.addEventListener('click', () => this.switchToXiaohongshuMode());
-        this.longImageModeBtn.addEventListener('click', () => this.switchToLongImageMode());
+        if (this.cardHeightSlider) {
+            this.cardHeightSlider.addEventListener('input', (e) => {
+                if (this.cardHeightValue) {
+                    this.cardHeightValue.textContent = e.target.value;
+                }
+                this.updatePreview();
+            });
+        }
         
         // 导出事件
-        this.exportAllBtn = document.getElementById('exportAllBtn');
-        this.exportZipBtn = document.getElementById('exportZipBtn');
+        const exportAllBtn = document.getElementById('exportAllBtn');
+        const exportZipBtn = document.getElementById('exportZipBtn');
         
-        this.exportAllBtn.addEventListener('click', () => this.downloadAllCards());
-        this.exportZipBtn.addEventListener('click', () => this.exportAsZip());
-        this.batchProcessBtn.addEventListener('click', () => this.batchProcessFiles());
+        if (exportAllBtn) {
+            exportAllBtn.addEventListener('click', () => this.downloadAllCards());
+        }
+        if (exportZipBtn) {
+            exportZipBtn.addEventListener('click', () => this.exportAsZip());
+        }
+        if (this.batchProcessBtn) {
+            this.batchProcessBtn.addEventListener('click', () => this.batchProcessFiles());
+        }
         
         // 分页事件
-        this.prevBtn.addEventListener('click', () => this.previousPage());
-        this.nextBtn.addEventListener('click', () => this.nextPage());
-        this.downloadAllBtn.addEventListener('click', () => this.downloadAllCards());
+        if (this.prevBtn) {
+            this.prevBtn.addEventListener('click', () => this.previousPage());
+        }
+        if (this.nextBtn) {
+            this.nextBtn.addEventListener('click', () => this.nextPage());
+        }
+        if (this.downloadAllBtn) {
+            this.downloadAllBtn.addEventListener('click', () => this.downloadAllCards());
+        }
         
         // 字体选择事件
-        this.fontSelect.addEventListener('change', () => {
-            const currentTemplate = this.templateSelect.value;
-            this.templateFonts[currentTemplate] = this.fontSelect.value;
-            this.updatePreview();
-        });
-        
-        // 比例选择事件
-        this.ratioSelect.addEventListener('change', (e) => {
-            const selectedOption = e.target.selectedOptions[0];
-            const width = selectedOption.dataset.width;
-            const height = selectedOption.dataset.height;
-            
-            // 更新滑块值
-            this.cardWidthSlider.value = width;
-            this.cardWidthValue.textContent = width;
-            this.cardHeightSlider.value = height;
-            this.cardHeightValue.textContent = height;
-            
-            this.updatePreview();
-        });
-        
-        // 背景图事件
-        this.bgUploadBtn.addEventListener('click', () => {
-            this.bgFileInput.click();
-        });
-        
-        this.bgFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.customBackgroundImage = e.target.result;
-                    this.updatePreview();
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-        
-        this.bgClearBtn.addEventListener('click', () => {
-            this.customBackgroundImage = null;
-            this.customBackgroundColor = null;
-            this.bgFileInput.value = '';
-            this.updatePreview();
-        });
-        
-        // 背景颜色选择事件
-        this.bgColorButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                this.customBackgroundColor = e.target.dataset.bgColor;
-                this.customBackgroundImage = null; // 清除背景图
-                this.bgFileInput.value = '';
+        if (this.fontSelect) {
+            this.fontSelect.addEventListener('change', () => {
+                if (this.templateSelect) {
+                    const currentTemplate = this.templateSelect.value;
+                    this.templateFonts[currentTemplate] = this.fontSelect.value;
+                }
                 this.updatePreview();
             });
-        });
+        }
         
-        // 文件上传事件
-        this.uploadMdBtn.addEventListener('click', () => {
-            this.mdFileInput.click();
-        });
+        // 比例选择事件
+        if (this.ratioSelect) {
+            this.ratioSelect.addEventListener('change', (e) => {
+                const selectedOption = e.target.selectedOptions[0];
+                if (selectedOption) {
+                    const width = selectedOption.dataset.width;
+                    const height = selectedOption.dataset.height;
+                    
+                    // 更新滑块值
+                    if (this.cardWidthSlider) {
+                        this.cardWidthSlider.value = width;
+                    }
+                    if (this.cardWidthValue) {
+                        this.cardWidthValue.textContent = width;
+                    }
+                    if (this.cardHeightSlider) {
+                        this.cardHeightSlider.value = height;
+                    }
+                    if (this.cardHeightValue) {
+                        this.cardHeightValue.textContent = height;
+                    }
+                }
+                this.updatePreview();
+            });
+        }
         
-        this.mdFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                this.readMarkdownFile(file);
-            }
-        });
+        // 背景图事件
+        if (this.bgUploadBtn) {
+            this.bgUploadBtn.addEventListener('click', () => {
+                if (this.bgFileInput) {
+                    this.bgFileInput.click();
+                }
+            });
+        }
         
-        this.uploadFolderBtn.addEventListener('click', () => {
-            this.mdFolderInput.click();
-        });
+        if (this.bgClearBtn) {
+            this.bgClearBtn.addEventListener('click', () => {
+                this.customBackgroundImage = null;
+                this.updatePreview();
+            });
+        }
         
-        this.mdFolderInput.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length > 0) {
-                this.readMarkdownFiles(files);
-            }
-        });
+        if (this.bgFileInput) {
+            this.bgFileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        this.customBackgroundImage = event.target.result;
+                        this.updatePreview();
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                }
+            });
+        }
         
-        // 内容背景透明度事件
-        this.opacitySlider = document.getElementById('opacitySlider');
-        this.opacityValue = document.getElementById('opacityValue');
+        // 上传按钮事件
+        if (this.uploadMdBtn) {
+            this.uploadMdBtn.addEventListener('click', () => {
+                if (this.mdFileInput) {
+                    this.mdFileInput.click();
+                }
+            });
+        }
         
-        this.opacitySlider.addEventListener('input', (e) => {
-            const opacity = parseFloat(e.target.value) / 100;
-            this.contentBackgroundOpacity = opacity;
-            this.opacityValue.textContent = e.target.value;
-            this.updatePreview();
-        });
+        if (this.uploadFolderBtn) {
+            this.uploadFolderBtn.addEventListener('click', () => {
+                if (this.mdFolderInput) {
+                    this.mdFolderInput.click();
+                }
+            });
+        }
+        
+        // 文件输入事件
+        if (this.mdFileInput) {
+            this.mdFileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    this.readMarkdownFile(e.target.files[0]);
+                }
+            });
+        }
+        
+        if (this.mdFolderInput) {
+            this.mdFolderInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    this.readMarkdownFolder(e.target.files);
+                }
+            });
+        }
+        
+        // 背景颜色事件
+        if (this.bgColorButtons) {
+            this.bgColorButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const bgColor = button.dataset.bgColor;
+                    this.customBackgroundColor = bgColor;
+                    this.updatePreview();
+                });
+            });
+        }
+        
+        // 主题事件
+        if (this.colorButtons) {
+            this.colorButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const theme = button.dataset.theme;
+                    this.changeTheme(theme);
+                    if (this.colorButtons) {
+                        this.colorButtons.forEach(btn => btn.classList.remove('active'));
+                    }
+                    button.classList.add('active');
+                });
+            });
+        }
+        
+        // 背景透明度事件
+        const opacitySlider = document.getElementById('opacitySlider');
+        const opacityValue = document.getElementById('opacityValue');
+        
+        if (opacitySlider) {
+            opacitySlider.addEventListener('input', (e) => {
+                if (opacityValue) {
+                    opacityValue.textContent = e.target.value;
+                }
+                this.contentBackgroundOpacity = e.target.value / 100;
+                this.updatePreview();
+            });
+        }
     }
 
     setDefaultXiaohongshuMode() {
         this.isXiaohongshuMode = true;
-        this.xiaohongshuModeBtn.classList.add('active');
-        this.longImageModeBtn.classList.remove('active');
-        this.xiaohongshuArea.style.display = 'block';
-        this.longImageArea.style.display = 'none';
+        if (this.xiaohongshuArea) {
+            this.xiaohongshuArea.style.display = 'block';
+        }
+        if (this.longImageArea) {
+            this.longImageArea.style.display = 'none';
+        }
     }
 
     loadDefaultContent() {
@@ -349,513 +407,291 @@ class MD2Card {
 ---
 *#好物推荐 #生活分享 #种草*`;
         
-        this.markdownInput.value = defaultContent;
+        if (this.markdownInput) {
+            this.markdownInput.value = defaultContent;
+        }
         this.updatePreview();
     }
 
     switchToXiaohongshuMode() {
         this.isXiaohongshuMode = true;
-        this.xiaohongshuModeBtn.classList.add('active');
-        this.longImageModeBtn.classList.remove('active');
-        this.xiaohongshuArea.style.display = 'block';
-        this.longImageArea.style.display = 'none';
+        if (this.xiaohongshuArea) {
+            this.xiaohongshuArea.style.display = 'block';
+        }
+        if (this.longImageArea) {
+            this.longImageArea.style.display = 'none';
+        }
         this.updatePreview();
     }
 
     switchToLongImageMode() {
         this.isXiaohongshuMode = false;
-        this.longImageModeBtn.classList.add('active');
-        this.xiaohongshuModeBtn.classList.remove('active');
-        this.longImageArea.style.display = 'block';
-        this.xiaohongshuArea.style.display = 'none';
+        if (this.longImageArea) {
+            this.longImageArea.style.display = 'block';
+        }
+        if (this.xiaohongshuArea) {
+            this.xiaohongshuArea.style.display = 'none';
+        }
         this.updatePreview();
     }
 
     updatePreview() {
-        const markdownText = this.markdownInput.value;
-        const htmlContent = marked.parse(markdownText);
+        const markdownText = this.markdownInput ? this.markdownInput.value : '';
+        if (!markdownText) return;
+        
+        const htmlText = marked.parse(markdownText);
         
         if (this.isXiaohongshuMode) {
-            this.showAllXiaohongshuCards(htmlContent);
+            this.generateXiaohongshuCards(htmlText);
         } else {
-            this.showLongImage(htmlContent);
+            this.generateLongImage(htmlText);
         }
     }
 
-    showLongImage(htmlContent) {
-        const template = this.templateSelect.value;
-        const templateClass = this.templates[template]?.class || 'xiaohongshu-template';
-        const theme = this.currentTheme;
+    generateXiaohongshuCards(htmlText) {
+        if (!this.xiaohongshuGrid) return;
         
-        // 更新卡片样式
-        this.cardPreview.className = `card ${templateClass} ${theme}-theme`;
-        this.cardContent.innerHTML = htmlContent;
+        // 清空预览区域
+        this.xiaohongshuGrid.innerHTML = '';
         
-        // 应用自定义样式
-        this.applyCustomStyles(this.cardPreview);
+        // 分割内容为卡片
+        this.splitContent = this.splitContentForXiaohongshu(htmlText);
+        this.totalPages = this.splitContent.length;
+        this.currentPage = 0;
+        
+        // 生成当前页卡片
+        this.generateCurrentPageCards();
+        
+        // 更新分页信息
+        this.updatePagination();
     }
 
-    showAllXiaohongshuCards(htmlContent) {
-        // 分割内容为多个卡片
-        this.splitContent = this.splitContentForCards(htmlContent);
-        this.totalPages = Math.ceil(this.splitContent.length / 9); // 每页9张卡片
-        
-        if (this.currentPage >= this.totalPages) {
-            this.currentPage = 0;
-        }
-        
-        this.renderCurrentPage();
-        this.updatePaginationControls();
-    }
-
-    splitContentForCards(htmlContent) {
-        // 简单的内容分割逻辑
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        
-        const elements = Array.from(tempDiv.children);
+    splitContentForXiaohongshu(html) {
+        // 简单的分割逻辑
+        const paragraphs = html.split('</p>');
         const cards = [];
-        let currentCard = '';
-        let wordCount = 0;
-        const maxWordsPerCard = 100;
+        let currentCard = [];
         
-        elements.forEach(element => {
-            const elementText = element.textContent || '';
-            const elementWords = elementText.length;
+        paragraphs.forEach((paragraph, index) => {
+            if (!paragraph.trim()) return;
             
-            if (wordCount + elementWords > maxWordsPerCard && currentCard) {
-                cards.push(currentCard);
-                currentCard = element.outerHTML;
-                wordCount = elementWords;
-            } else {
-                currentCard += element.outerHTML;
-                wordCount += elementWords;
+            currentCard.push(paragraph + '</p>');
+            
+            // 每3个段落或最后一段时创建一张卡片
+            if (currentCard.length >= 3 || index === paragraphs.length - 1) {
+                cards.push(currentCard.join(''));
+                currentCard = [];
             }
         });
         
-        if (currentCard) {
-            cards.push(currentCard);
-        }
-        
-        return cards.length > 0 ? cards : [htmlContent];
+        return cards.length > 0 ? cards : [html];
     }
 
-    renderCurrentPage() {
-        const startIndex = this.currentPage * 9;
-        const endIndex = Math.min(startIndex + 9, this.splitContent.length);
-        const pageCards = this.splitContent.slice(startIndex, endIndex);
+    generateCurrentPageCards() {
+        if (!this.xiaohongshuGrid) return;
         
         this.xiaohongshuGrid.innerHTML = '';
         
-        pageCards.forEach((cardContent, index) => {
-            const cardElement = this.createXiaohongshuCard(cardContent, startIndex + index);
-            this.xiaohongshuGrid.appendChild(cardElement);
-        });
+        if (this.splitContent[this.currentPage]) {
+            const cardContent = this.splitContent[this.currentPage];
+            const card = this.createXiaohongshuCard(cardContent);
+            this.xiaohongshuGrid.appendChild(card);
+        }
     }
 
-    createXiaohongshuCard(content, index) {
-        const template = this.templateSelect.value;
-        const templateClass = this.templates[template]?.class || 'xiaohongshu-template';
-        const theme = this.currentTheme;
+    createXiaohongshuCard(content) {
+        const card = document.createElement('div');
+        card.className = 'card xiaohongshu-template ' + this.currentTheme + '-theme';
         
-        const cardDiv = document.createElement('div');
-        cardDiv.className = `xiaohongshu-card ${templateClass} ${theme}-theme`;
-        cardDiv.innerHTML = `<div class="card-content">${content}</div>`;
-        
-        // 应用自定义样式
-        this.applyCustomStyles(cardDiv);
-        
-        return cardDiv;
-    }
-
-    applyCustomStyles(cardElement) {
-        const fontSize = this.fontSizeSlider.value;
-        const padding = this.paddingSlider.value;
-        const borderRadius = this.borderRadiusSlider.value;
-        const cardWidth = this.cardWidthSlider.value;
-        const cardHeight = this.cardHeightSlider.value;
-        const selectedFont = this.fontSelect.value;
-        
-        // 应用样式
-        cardElement.style.fontSize = `${fontSize}px`;
-        cardElement.style.padding = `${padding}px`;
-        cardElement.style.borderRadius = `${borderRadius}px`;
-        cardElement.style.width = `${cardWidth}px`;
-        cardElement.style.height = `${cardHeight}px`;
+        const cardInner = document.createElement('div');
+        cardInner.className = 'card-content';
+        cardInner.innerHTML = content;
         
         // 应用字体
-        if (selectedFont !== 'default') {
-            cardElement.style.fontFamily = selectedFont;
+        if (this.fontSelect) {
+            const fontValue = this.fontSelect.value;
+            if (fontValue && fontValue !== 'default') {
+                cardInner.style.fontFamily = fontValue;
+            }
         }
         
-        // 应用背景图或背景颜色
+        // 应用背景图
         if (this.customBackgroundImage) {
-            cardElement.style.backgroundImage = `url(${this.customBackgroundImage})`;
-            cardElement.style.backgroundSize = 'cover';
-            cardElement.style.backgroundPosition = 'center';
-            cardElement.style.backgroundColor = '';
-        } else if (this.customBackgroundColor) {
-            cardElement.style.backgroundColor = this.customBackgroundColor;
-            cardElement.style.backgroundImage = '';
+            card.style.backgroundImage = `url('${this.customBackgroundImage}')`;
+            card.style.backgroundSize = 'cover';
+            card.style.backgroundPosition = 'center';
+        }
+        
+        // 应用背景颜色
+        if (this.customBackgroundColor) {
+            card.style.backgroundColor = this.customBackgroundColor;
         }
         
         // 应用内容背景透明度
-        const cardContent = cardElement.querySelector('.card-content');
-        if (cardContent) {
-            cardContent.style.backgroundColor = `rgba(255, 255, 255, ${this.contentBackgroundOpacity})`;
-            // 根据透明度调整文字颜色，确保可读性
-            if (this.contentBackgroundOpacity < 0.3) {
-                cardContent.style.color = '#ffffff';
-            } else {
-                // 保持原有颜色
+        if (cardInner) {
+            cardInner.style.opacity = this.contentBackgroundOpacity;
+        }
+        
+        card.appendChild(cardInner);
+        return card;
+    }
+
+    generateLongImage(htmlText) {
+        if (!this.cardContent) return;
+        
+        this.cardContent.innerHTML = htmlText;
+        
+        // 应用字体
+        if (this.fontSelect && this.cardContent) {
+            const fontValue = this.fontSelect.value;
+            if (fontValue && fontValue !== 'default') {
+                this.cardContent.style.fontFamily = fontValue;
             }
+        }
+        
+        // 应用背景图
+        if (this.cardPreview && this.customBackgroundImage) {
+            this.cardPreview.style.backgroundImage = `url('${this.customBackgroundImage}')`;
+            this.cardPreview.style.backgroundSize = 'cover';
+            this.cardPreview.style.backgroundPosition = 'center';
+        }
+        
+        // 应用背景颜色
+        if (this.cardPreview && this.customBackgroundColor) {
+            this.cardPreview.style.backgroundColor = this.customBackgroundColor;
+        }
+        
+        // 应用内容背景透明度
+        if (this.cardContent) {
+            this.cardContent.style.opacity = this.contentBackgroundOpacity;
         }
     }
 
-    updatePaginationControls() {
-        if (this.totalPages > 1) {
-            this.paginationControls.style.display = 'flex';
-            this.pageInfo.textContent = `第 ${this.currentPage + 1} 页，共 ${this.totalPages} 页`;
-            this.prevBtn.disabled = this.currentPage === 0;
-            this.nextBtn.disabled = this.currentPage === this.totalPages - 1;
-        } else {
-            this.paginationControls.style.display = 'none';
-        }
+    updatePagination() {
+        if (!this.pageInfo) return;
         
-        // 显示批量导出按钮
-        if (this.splitContent.length > 1) {
-            document.getElementById('batchExport').style.display = 'block';
-        } else {
-            document.getElementById('batchExport').style.display = 'none';
+        this.pageInfo.textContent = `第 ${this.currentPage + 1} 页，共 ${this.totalPages} 页`;
+        
+        if (this.paginationControls) {
+            this.paginationControls.style.display = this.totalPages > 1 ? 'flex' : 'none';
         }
     }
 
     previousPage() {
         if (this.currentPage > 0) {
             this.currentPage--;
-            this.renderCurrentPage();
-            this.updatePaginationControls();
+            this.generateCurrentPageCards();
+            this.updatePagination();
         }
     }
 
     nextPage() {
         if (this.currentPage < this.totalPages - 1) {
             this.currentPage++;
-            this.renderCurrentPage();
-            this.updatePaginationControls();
+            this.generateCurrentPageCards();
+            this.updatePagination();
         }
     }
 
-    async exportLongImage() {
-        const card = this.cardPreview;
-        
-        try {
-            const canvas = await html2canvas(card, {
-                scale: 6,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                width: card.offsetWidth,
-                height: card.offsetHeight
-            });
-            
-            // 下载图片
-            const link = document.createElement('a');
-            link.download = this.getFileName('长图');
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        } catch (error) {
-            console.error('导出长图失败:', error);
-            alert('导出失败，请重试');
-        }
-    }
-
-    async exportXiaohongshuCards() {
-        const cards = this.xiaohongshuGrid.querySelectorAll('.xiaohongshu-card');
-        
-        if (cards.length === 0) {
-            alert('没有可导出的卡片');
+    downloadAllCards() {
+        if (this.splitContent.length === 0) {
+            alert('没有可下载的卡片内容');
             return;
         }
         
-        try {
-            for (let i = 0; i < cards.length; i++) {
-                const card = cards[i];
-                const canvas = await html2canvas(card, {
-                    scale: 6,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                    width: card.offsetWidth,
-                    height: card.offsetHeight
-                });
-                
-                // 下载图片
-                const link = document.createElement('a');
-                link.download = this.getFileName(`小红书卡片_${this.currentPage + 1}_${i + 1}`);
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                
-                // 添加延迟避免浏览器阻止多个下载
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-        } catch (error) {
-            console.error('导出小红书卡片失败:', error);
-            alert('导出失败，请重试');
-        }
-    }
-
-    async downloadAllCards() {
-        try {
-            for (let page = 0; page < this.totalPages; page++) {
-                // 临时切换到该页
-                const originalPage = this.currentPage;
-                this.currentPage = page;
-                this.renderCurrentPage();
-                
-                // 等待渲染完成
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-                // 导出该页的卡片
-                const cards = this.xiaohongshuGrid.querySelectorAll('.xiaohongshu-card');
-                
-                for (let i = 0; i < cards.length; i++) {
-                    const card = cards[i];
-                    const canvas = await html2canvas(card, {
-                        scale: 6,
-                        useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: '#ffffff',
-                        logging: false,
-                        width: card.offsetWidth,
-                        height: card.offsetHeight
-                    });
-                    
-                    // 下载图片
-                    const link = document.createElement('a');
-                    link.download = this.getFileName(`小红书卡片_${page + 1}_${i + 1}`);
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                    
-                    // 添加延迟
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-                
-                // 恢复原页面
-                this.currentPage = originalPage;
-            }
-            
-            // 重新渲染当前页
-            this.renderCurrentPage();
-            this.updatePaginationControls();
-        } catch (error) {
-            console.error('批量导出失败:', error);
-            alert('批量导出失败，请重试');
-        }
-    }
-
-    getFileName(prefix, fileName = null) {
-        // 如果提供了文件名，使用文件名
-        if (fileName) {
-            const cleanFileName = fileName.replace(/\.md$|\.markdown$/, '').substring(0, 50);
-            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:\-]/g, '');
-            return `${cleanFileName}_${prefix}_${timestamp}.png`;
-        }
-        
-        // 否则获取第一行文本作为文件名
-        const firstLine = this.markdownInput.value.split('\n')[0];
-        const cleanFirstLine = firstLine.replace(/[#\*\-\s]/g, '').substring(0, 50);
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:\-]/g, '');
-        
-        if (cleanFirstLine) {
-            return `${cleanFirstLine}_${prefix}_${timestamp}.png`;
-        } else {
-            return `${prefix}_${timestamp}.png`;
-        }
-    }
-    
-    // 读取单个Markdown文件
-    readMarkdownFile(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
-            this.markdownInput.value = content;
-            this.updatePreview();
-        };
-        reader.onerror = () => {
-            alert('读取文件失败，请重试');
-        };
-        reader.readAsText(file, 'utf-8');
-    }
-    
-    // 读取多个Markdown文件
-    readMarkdownFiles(files) {
-        // 存储所有文件
-        this.batchFiles = files;
-        
-        // 显示文件数量
-        if (files.length > 0) {
-            // 处理第一个文件作为当前编辑文件
-            this.readMarkdownFile(files[0]);
-            
-            if (files.length > 1) {
-                alert(`已加载第一个文件，共选择了 ${files.length} 个文件`);
-            }
-        }
-    }
-    
-    // 批量处理所有Markdown文件
-    async batchProcessFiles() {
-        if (!this.batchFiles || this.batchFiles.length === 0) {
-            alert('请先上传文件夹中的Markdown文件');
-            return;
-        }
-        
-        try {
-            const zip = new JSZip();
-            const images = zip.folder('小红书卡片');
-            
-            for (let i = 0; i < this.batchFiles.length; i++) {
-                const file = this.batchFiles[i];
-                const fileName = file.name.replace(/\.md$|\.markdown$/, '');
-                
-                // 读取文件内容
-                const content = await this.readFileAsText(file);
-                const htmlContent = marked.parse(content);
-                
-                // 生成卡片
-                const cardElement = this.createBatchCard(htmlContent);
-                
-                // 转换为图片
-                const canvas = await html2canvas(cardElement, {
-                    scale: 6,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                    width: cardElement.offsetWidth,
-                    height: cardElement.offsetHeight
-                });
-                
-                // 添加到压缩包
-                const dataUrl = canvas.toDataURL('image/png');
-                const base64Data = dataUrl.split(',')[1];
-                images.file(`${fileName}.png`, base64Data, { base64: true });
-            }
-            
-            // 生成压缩包并下载
-            zip.generateAsync({ type: 'blob' }).then(blob => {
-                const link = document.createElement('a');
-                link.download = '批量导出小红书卡片.zip';
-                link.href = URL.createObjectURL(blob);
-                link.click();
-            });
-        } catch (error) {
-            console.error('批量处理失败:', error);
-            alert('批量处理失败，请重试');
-        }
-    }
-    
-    // 读取文件为文本
-    readFileAsText(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('读取文件失败'));
-            reader.readAsText(file, 'utf-8');
+        this.splitContent.forEach((content, index) => {
+            this.downloadCard(content, index + 1);
         });
     }
-    
-    // 创建用于批量处理的卡片
-    createBatchCard(htmlContent) {
-        const template = this.templateSelect.value;
-        const templateClass = this.templates[template]?.class || 'xiaohongshu-template';
-        const theme = this.currentTheme;
+
+    downloadCard(content, index) {
+        const card = this.createXiaohongshuCard(content);
+        document.body.appendChild(card);
         
-        const cardDiv = document.createElement('div');
-        cardDiv.className = `card ${templateClass} ${theme}-theme`;
-        cardDiv.style.width = `${this.cardWidthSlider.value}px`;
-        cardDiv.style.height = `${this.cardHeightSlider.value}px`;
-        cardDiv.innerHTML = `<div class="card-content">${htmlContent}</div>`;
-        
-        // 应用自定义样式
-        this.applyCustomStyles(cardDiv);
-        
-        // 隐藏添加到DOM
-        cardDiv.style.position = 'absolute';
-        cardDiv.style.left = '-9999px';
-        document.body.appendChild(cardDiv);
-        
-        return cardDiv;
+        html2canvas(card).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `小红书卡片_${index}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            document.body.removeChild(card);
+        });
     }
-    
-    async exportAsZip() {
-        try {
-            // 检查是否有可用的JSZip库
-            if (typeof JSZip === 'undefined') {
-                alert('请先引入JSZip库以支持压缩包导出功能');
-                return;
-            }
-            
-            const zip = new JSZip();
-            const images = zip.folder('小红书卡片');
-            
-            for (let page = 0; page < this.totalPages; page++) {
-                // 临时切换到该页
-                const originalPage = this.currentPage;
-                this.currentPage = page;
-                this.renderCurrentPage();
+
+    exportAsZip() {
+        if (this.splitContent.length === 0) {
+            alert('没有可导出的卡片内容');
+            return;
+        }
+        
+        const zip = new JSZip();
+        const promises = [];
+        
+        this.splitContent.forEach((content, index) => {
+            const promise = new Promise((resolve) => {
+                const card = this.createXiaohongshuCard(content);
+                document.body.appendChild(card);
                 
-                // 等待渲染完成
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-                // 导出该页的卡片
-                const cards = this.xiaohongshuGrid.querySelectorAll('.xiaohongshu-card');
-                
-                for (let i = 0; i < cards.length; i++) {
-                    const card = cards[i];
-                    const canvas = await html2canvas(card, {
-                        scale: 6,
-                        useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: '#ffffff',
-                        logging: false,
-                        width: card.offsetWidth,
-                        height: card.offsetHeight
+                html2canvas(card).then(canvas => {
+                    canvas.toBlob((blob) => {
+                        zip.file(`小红书卡片_${index + 1}.png`, blob);
+                        document.body.removeChild(card);
+                        resolve();
                     });
-                    
-                    // 将图片添加到压缩包
-                    const fileName = this.getFileName(`小红书卡片_${page + 1}_${i + 1}`);
-                    const dataUrl = canvas.toDataURL('image/png');
-                    const base64Data = dataUrl.split(',')[1];
-                    images.file(fileName, base64Data, { base64: true });
-                }
-                
-                // 恢复原页面
-                this.currentPage = originalPage;
-            }
-            
-            // 生成压缩包并下载
-            zip.generateAsync({ type: 'blob' }).then(blob => {
+                });
+            });
+            promises.push(promise);
+        });
+        
+        Promise.all(promises).then(() => {
+            zip.generateAsync({ type: 'blob' }).then((blob) => {
                 const link = document.createElement('a');
-                link.download = this.getFileName('小红书卡片') + '.zip';
+                link.download = '小红书卡片.zip';
                 link.href = URL.createObjectURL(blob);
                 link.click();
             });
-            
-            // 重新渲染当前页
-            this.renderCurrentPage();
-            this.updatePaginationControls();
-        } catch (error) {
-            console.error('导出压缩包失败:', error);
-            alert('导出压缩包失败，请重试');
+        });
+    }
+
+    batchProcessFiles() {
+        alert('批量处理功能开发中，敬请期待！');
+    }
+
+    readMarkdownFile(file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (this.markdownInput) {
+                this.markdownInput.value = event.target.result;
+            }
+            this.updatePreview();
+        };
+        reader.readAsText(file);
+    }
+
+    readMarkdownFolder(files) {
+        const markdownFiles = Array.from(files).filter(file => 
+            file.name.endsWith('.md') || file.name.endsWith('.markdown')
+        );
+        
+        if (markdownFiles.length === 0) {
+            alert('未找到Markdown文件');
+            return;
         }
+        
+        // 处理第一个文件
+        this.readMarkdownFile(markdownFiles[0]);
+        
+        if (markdownFiles.length > 1) {
+            alert(`找到 ${markdownFiles.length} 个Markdown文件，已加载第一个文件`);
+        }
+    }
+
+    changeTheme(theme) {
+        this.currentTheme = theme;
+        this.updatePreview();
     }
 }
 
 // 初始化应用
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
     new MD2Card();
 });
