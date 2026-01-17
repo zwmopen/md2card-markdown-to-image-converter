@@ -45,6 +45,10 @@ class MD2Card {
         this.maxCharsSlider = document.getElementById('maxCharsSlider');
         this.maxCharsValue = document.getElementById('maxCharsValue');
         
+        // 新的导出按钮
+        this.exportBtn = document.getElementById('exportBtn');
+        this.exportZipBtn = document.getElementById('exportZipBtn');
+        
         // 操作按钮
         this.clearBtn = document.getElementById('clearBtn');
         this.exampleBtn = document.getElementById('exampleBtn');
@@ -300,6 +304,19 @@ class MD2Card {
         this.downloadAllBtn.addEventListener('click', () => {
             this.downloadAllCards();
         });
+        
+        // 新的导出按钮事件监听器
+        if (this.exportBtn) {
+            this.exportBtn.addEventListener('click', () => {
+                this.generateCards();
+            });
+        }
+        
+        if (this.exportZipBtn) {
+            this.exportZipBtn.addEventListener('click', () => {
+                this.downloadAllCards();
+            });
+        }
     }
 
     initMarked() {
