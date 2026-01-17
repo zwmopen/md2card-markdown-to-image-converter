@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD2Card - Markdown转小红书卡片工具</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Source+Sans+Pro:wght@300;400;600;700&family=Raleway:wght@300;400;500;600;700&family=Ubuntu:wght@300;400;500;700&family=Nunito:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@300;400;500;700&family=Source+Han+Sans+SC:wght@300;400;500;700&family=Source+Han+Serif+SC:wght@300;400;500;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+KuaiLe&family=Zhi+Mang+Xing&family=Liu+Jian+Mao+Cao&family=Long+Cang&family=Playfair+Display:wght@400;500;600;700&family=Merriweather:wght@300;400;700&family=Crimson+Text:wght@400;600&family=Libre+Baskerville:wght@400;700&family=Dancing+Script:wght@400;500;600;700&family=Pacifico&family=Lobster&family=Great+Vibes&family=Fira+Code:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Ubuntu+Mono:wght@400;700&family=Inconsolata:wght@300;400;500;600;700" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- JSZip for zip export -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="editor-section">
+                <div class="editor-header">
+                    <h3><i class="fas fa-edit"></i> Markdown编辑器</h3>
+                    <div class="editor-controls">
+                        <input type="file" id="mdFileInput" accept=".md,.markdown" style="display: none;">
+                        <input type="file" id="mdFolderInput" webkitdirectory directory multiple accept=".md,.markdown" style="display: none;">
+                        <button id="uploadMdBtn" class="upload-btn">
+                            <i class="fas fa-file-import"></i>
+                            上传文件
+                        </button>
+                        <button id="uploadFolderBtn" class="upload-btn">
+                            <i class="fas fa-folder-open"></i>
+                            上传文件夹
+                        </button>
+                    </div>
+                </div>
+                <textarea id="markdownInput" class="markdown-input" placeholder="# 🌸 小红书分享
+
+## ✨ 今日好物推荐
+
+最近发现了超棒的宝藏好物！
+
+### 🎯 推荐理由
+- **颜值超高** - 简约设计，百搭风格
+- **性价比** - 价格亲民，质量优秀  
+- **实用性** - 日常必备，提升生活品质
+
+### 💡 使用心得
+用了一段时间，真的太满意了！
+强烈推荐给大家 ✨
+
+---
+*#好物推荐 #生活分享 #种草*"># 🌸 小红书分享
+
+## ✨ 今日好物推荐
+
+最近发现了超棒的宝藏好物！
+
+### 🎯 推荐理由
+- **颜值超高** - 简约设计，百搭风格
+- **性价比** - 价格亲民，质量优秀  
+- **实用性** - 日常必备，提升生活品质
+
+### 💡 使用心得
+用了一段时间，真的太满意了！
+强烈推荐给大家 ✨
+
+---
+*#好物推荐 #生活分享 #种草*</textarea>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-header">
+                    <h3><i class="fas fa-sliders-h"></i> 样式控制</h3>
+                </div>
+                
+                <div class="controls-content">
+                    <!-- 模板和字体选择并排 -->
+                    <div class="template-font-row">
+                        <!-- 模板选择 -->
+                        <div class="template-selector">
+                            <label>模板</label>
+                            <select id="templateSelect" class="template-select">
+                                <option value="xiaohongshu">小红书经典</option>
+                                <option value="minimal">极简风格</option>
+                                <option value="gradient">渐变背景</option>
+                                <option value="shadow">阴影卡片</option>
+                                <option value="border">边框装饰</option>
+                                <option value="rounded">圆角设计</option>
+                                <option value="modern">现代简约</option>
+                                <option value="elegant">优雅风格</option>
+                                <option value="vibrant">活力色彩</option>
+                                <option value="soft">柔和色调</option>
+                                <option value="bold">大胆设计</option>
+                                <option value="clean">清新风格</option>
+                                <option value="warm">温暖色调</option>
+                                <option value="cool">冷色调</option>
+                                <option value="nature">自然风格</option>
+                                <option value="tech">科技风格</option>
+                                <option value="retro">复古风格</option>
+                                <option value="neon">霓虹风格</option>
+                                <option value="pastel">马卡龙色</option>
+                                <option value="dark">深色主题</option>
+                                <option value="light">浅色主题</option>
+                                <option value="colorful">多彩风格</option>
+                                <option value="monochrome">单色风格</option>
+                                <option value="artistic">艺术风格</option>
+                                <option value="business">商务风格</option>
+                                <option value="casual">休闲风格</option>
+                                <option value="luxury">奢华风格</option>
+                                <option value="minimalist">极简主义</option>
+                                <option value="vintage">复古怀旧</option>
+                                <option value="futuristic">未来科技</option>
+                                <option value="organic">有机风格</option>
+                                <option value="geometric">几何图形</option>
+                                <option value="handwritten">手写风格</option>
+                                <!-- 社交媒体风格 -->
+                                <option value="wechat_reading">微信读书</option>
+                                <option value="xingtu">醒图风格</option>
+                                <option value="instagram_story">Instagram故事</option>
+                                <option value="twitter_card">Twitter卡片</option>
+                                <option value="linkedin_post">LinkedIn帖子</option>
+                                <option value="tiktok_video">TikTok视频</option>
+                                <option value="bilibili_cover">B站封面</option>
+                                <option value="zhihu_answer">知乎回答</option>
+                                <option value="weibo_post">微博帖子</option>
+                                <option value="douyin_video">抖音短视频</option>
+                                <!-- 设计平台风格 -->
+                                <option value="canva_modern">Canva现代</option>
+                                <option value="figma_design">Figma设计</option>
+                                <option value="dribbble_card">Dribbble卡片</option>
+                                <option value="behance_portfolio">Behance作品集</option>
+                                <option value="pinterest_pin">Pinterest图钉</option>
+                                <!-- 音乐娱乐风格 -->
+                                <option value="netease_music">网易云音乐</option>
+                                <option value="qq_music">QQ音乐</option>
+                                <option value="spotify_playlist">Spotify播放列表</option>
+                                <option value="netflix_show">Netflix节目</option>
+                                <!-- 游戏风格 -->
+                                <option value="steam_game">Steam游戏</option>
+                                <option value="genshin_impact">原神</option>
+                                <option value="minecraft">我的世界</option>
+                                <option value="pokemon_card">宝可梦卡片</option>
+                                <!-- 特殊风格 -->
+                                <option value="anime_style">动漫风格</option>
+                                <option value="miyazaki_style">宫崎骏风格</option>
+                                <option value="github_readme">GitHub README</option>
+                                <option value="discord_embed">Discord嵌入</option>
+                                <option value="medium_article">Medium文章</option>
+                            </select>
+                        </div>
+                        
+                        <!-- 字体选择 -->
+                        <div class="font-selector">
+                            <label>字体</label>
+                            <select id="fontSelect" class="font-select">
+                                <option value="default">默认字体</option>
+                                
+                                <!-- 系统字体 -->
+                                <optgroup label="系统字体">
+                                    <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                                    <option value="'SimHei', sans-serif">黑体</option>
+                                    <option value="'SimSun', serif">宋体</option>
+                                    <option value="'KaiTi', serif">楷体</option>
+                                    <option value="'FangSong', serif">仿宋</option>
+                                    <option value="'PingFang SC', sans-serif">苹方</option>
+                                    <option value="'Hiragino Sans GB', sans-serif">冬青黑体</option>
+                                </optgroup>
+                                
+                                <!-- 醒图字体 -->
+                                <optgroup label="醒图字体">
+                                    <option value="'醒图系统', sans-serif">醒图系统</option>
+                                    <option value="'超凡体', sans-serif">超凡体</option>
+                                    <option value="'高字标志圆', sans-serif">高字标志圆</option>
+                                    <option value="'太空奇遇', sans-serif">太空奇遇</option>
+                                    <option value="'山雁体', serif">山雁体</option>
+                                    <option value="'香蕉人体', cursive">香蕉人体</option>
+                                    <option value="'软糖奶熊', cursive">软糖奶熊</option>
+                                    <option value="'追风手迹', cursive">追风手迹</option>
+                                    <option value="'叙黑体', sans-serif">叙黑体</option>
+                                    <option value="'漫雅手书', cursive">漫雅手书</option>
+                                    <option value="'古映体', serif">古映体</option>
+                                    <option value="'康宋体', serif">康宋体</option>
+                                    <option value="'剪映春日部', sans-serif">剪映春日部</option>
+                                    <option value="'海岛森林', sans-serif">海岛森林</option>
+                                    <option value="'剪映软糖', cursive">剪映软糖</option>
+                                    <option value="'剪映专辑', sans-serif">剪映专辑</option>
+                                    <option value="'志向黑', sans-serif">志向黑</option>
+                                    <option value="'新青年', sans-serif">新青年</option>
+                                    <option value="'敲可爱', cursive">敲可爱</option>
+                                    <option value="'字由棒棒', cursive">字由棒棒</option>
+                                    <option value="'Piston', sans-serif">Piston</option>
+                                    <option value="'Element', sans-serif">Element</option>
+                                    <option value="'FLUFFY', cursive">FLUFFY</option>
+                                    <option value="'MonoCut', monospace">MonoCut</option>
+                                    <option value="'鸣翠体', serif">鸣翠体</option>
+                                    <option value="'Corben', serif">Corben</option>
+                                    <option value="'Rammentto', cursive">Rammentto</option>
+                                    <option value="'NewYork', serif">NewYork</option>
+                                    <option value="'Tactful', sans-serif">Tactful</option>
+                                    <option value="'古雅宋', serif">古雅宋</option>
+                                    <option value="'思源黑粗', sans-serif">思源黑粗</option>
+                                    <option value="'趣黑简繁', sans-serif">趣黑简繁</option>
+                                    <option value="'宋黑体', serif">宋黑体</option>
+                                    <option value="'归雁体', serif">归雁体</option>
+                                    <option value="'景曜体', sans-serif">景曜体</option>
+                                    <option value="'莫雪体', cursive">莫雪体</option>
+                                    <option value="'未光体', sans-serif">未光体</option>
+                                    <option value="'阳华体', sans-serif">阳华体</option>
+                                    <option value="'烟客体', cursive">烟客体</option>
+                                    <option value="'亦然体', serif">亦然体</option>
+                                    <option value="'文韵体', serif">文韵体</option>
+                                    <option value="'造梦简', sans-serif">造梦简</option>
+                                    <option value="'勇敢黑', sans-serif">勇敢黑</option>
+                                    <option value="'力量体', sans-serif">力量体</option>
+                                    <option value="'反差圆舞', cursive">反差圆舞</option>
+                                    <option value="'唧唧国王', cursive">唧唧国王</option>
+                                    <option value="'RELAX', sans-serif">RELAX</option>
+                                    <option value="'字由奇巧', cursive">字由奇巧</option>
+                                    <option value="'角黑体', sans-serif">角黑体</option>
+                                    <option value="'Timing', sans-serif">Timing</option>
+                                    <option value="'Panacea', sans-serif">Panacea</option>
+                                    <option value="'Spunk', sans-serif">Spunk</option>
+                                    <option value="'Courage', sans-serif">Courage</option>
+                                    <option value="'TREND', sans-serif">TREND</option>
+                                    <option value="'MODERN', sans-serif">MODERN</option>
+                                    <option value="'VIGOUR', sans-serif">VIGOUR</option>
+                                    <option value="'Starry', cursive">Starry</option>
+                                    <option value="'Daisy', cursive">Daisy</option>
+                                    <option value="'Elixir', serif">Elixir</option>
+                                    <option value="'抖音体', sans-serif">抖音体</option>
+                                    <option value="'无界黑', sans-serif">无界黑</option>
+                                    <option value="'GalleryModern', sans-serif">GalleryModern</option>
+                                    <option value="'拙然体', serif">拙然体</option>
+                                    <option value="'晶熙黑细', sans-serif">晶熙黑细</option>
+                                    <option value="'晶熙黑粗', sans-serif">晶熙黑粗</option>
+                                    <option value="'PinyonScript', cursive">PinyonScript</option>
+                                    <option value="'鸿潮榜书', serif">鸿潮榜书</option>
+                                    <option value="'兰亭中黑', sans-serif">兰亭中黑</option>
+                                    <option value="'兰亭圆', sans-serif">兰亭圆</option>
+                                    <option value="'上海宋体', serif">上海宋体</option>
+                                    <option value="'蒹葭体', serif">蒹葭体</option>
+                                    <option value="'古典明朝', serif">古典明朝</option>
+                                    <option value="'招牌体', sans-serif">招牌体</option>
+                                    <option value="'快乐体', cursive">快乐体</option>
+                                    <option value="'将军体', sans-serif">将军体</option>
+                                    <option value="'漫书体', cursive">漫书体</option>
+                                    <option value="'惊鸿体', serif">惊鸿体</option>
+                                    <option value="'直率体', sans-serif">直率体</option>
+                                    <option value="'金砖黑', sans-serif">金砖黑</option>
+                                    <option value="'奶油体', cursive">奶油体</option>
+                                    <option value="'Culture', serif">Culture</option>
+                                    <option value="'随心体', cursive">随心体</option>
+                                    <option value="'白衣翩翩', cursive">白衣翩翩</option>
+                                    <option value="'专辑手写', cursive">专辑手写</option>
+                                    <option value="'Signeton', cursive">Signeton</option>
+                                    <option value="'Faustine', serif">Faustine</option>
+                                    <option value="'情书体', cursive">情书体</option>
+                                    <option value="'静蕾体', cursive">静蕾体</option>
+                                    <option value="'飒爽手写', cursive">飒爽手写</option>
+                                    <option value="'元气拼音', sans-serif">元气拼音</option>
+                                    <option value="'寒蝉手拙', cursive">寒蝉手拙</option>
+                                    <option value="'英雄体', sans-serif">英雄体</option>
+                                    <option value="'霸蛮体', sans-serif">霸蛮体</option>
+                                    <option value="'魅黑简', sans-serif">魅黑简</option>
+                                    <option value="'细潮圆', sans-serif">细潮圆</option>
+                                    <option value="'莫奇體', serif">莫奇體</option>
+                                </optgroup>
+                                
+                                <!-- 微信读书字体 -->
+                                <optgroup label="微信读书字体">
+                                    <option value="'仓耳今楷', serif">仓耳今楷</option>
+                                    <option value="'仓耳云黑', sans-serif">仓耳云黑</option>
+                                    <option value="'方正悠宋', serif">方正悠宋</option>
+                                    <option value="'思源宋体', serif">思源宋体</option>
+                                    <option value="'思源黑体', sans-serif">思源黑体</option>
+                                    <option value="'方正宋三', serif">方正宋三</option>
+                                    <option value="'仓耳玄三', sans-serif">仓耳玄三</option>
+                                    <option value="'霞鹜文楷', serif">霞鹜文楷</option>
+                                    <option value="'AI 楷', serif">AI 楷</option>
+                                    <option value="'方正兰亭黑', sans-serif">方正兰亭黑</option>
+                                    <option value="'汉仪空山楷', serif">汉仪空山楷</option>
+                                    <option value="'方正盛世楷书', serif">方正盛世楷书</option>
+                                    <option value="'方正聚珍新仿', serif">方正聚珍新仿</option>
+                                    <option value="'方正兰亭圆', sans-serif">方正兰亭圆</option>
+                                    <option value="'方正欧蝶正楷', serif">方正欧蝶正楷</option>
+                                </optgroup>
+                                
+                                <!-- 英文字体 -->
+                                <optgroup label="英文字体">
+                                    <option value="'Arial', sans-serif">Arial</option>
+                                    <option value="'Times New Roman', serif">Times New Roman</option>
+                                    <option value="'Helvetica', sans-serif">Helvetica</option>
+                                    <option value="'Georgia', serif">Georgia</option>
+                                    <option value="'Verdana', sans-serif">Verdana</option>
+                                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                                    <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                                    <option value="'Impact', sans-serif">Impact</option>
+                                    <option value="'Courier New', monospace">Courier New</option>
+                                </optgroup>
+                                
+                                <!-- 网络字体 -->
+                                <optgroup label="网络字体">
+                                    <option value="'Roboto', sans-serif">Roboto</option>
+                                    <option value="'Open Sans', sans-serif">Open Sans</option>
+                                    <option value="'Lato', sans-serif">Lato</option>
+                                    <option value="'Montserrat', sans-serif">Montserrat</option>
+                                    <option value="'Source Sans Pro', sans-serif">Source Sans Pro</option>
+                                    <option value="'Raleway', sans-serif">Raleway</option>
+                                    <option value="'Ubuntu', sans-serif">Ubuntu</option>
+                                    <option value="'Nunito', sans-serif">Nunito</option>
+                                    <option value="'Poppins', sans-serif">Poppins</option>
+                                    <option value="'Inter', sans-serif">Inter</option>
+                                    <option value="'Fira Sans', sans-serif">Fira Sans</option>
+                                    <option value="'Work Sans', sans-serif">Work Sans</option>
+                                    <option value="'PT Sans', sans-serif">PT Sans</option>
+                                    <option value="'Noto Sans', sans-serif">Noto Sans</option>
+                                </optgroup>
+                                
+                                <!-- 中文网络字体 -->
+                                <optgroup label="中文网络字体">
+                                    <option value="'Noto Sans SC', sans-serif">思源黑体</option>
+                                    <option value="'Noto Serif SC', serif">思源宋体</option>
+                                    <option value="'Source Han Sans SC', sans-serif">思源黑体SC</option>
+                                    <option value="'Source Han Serif SC', serif">思源宋体SC</option>
+                                    <option value="'Ma Shan Zheng', cursive">马善政楷书</option>
+                                    <option value="'ZCOOL XiaoWei', serif">站酷小薇</option>
+                                    <option value="'ZCOOL QingKe HuangYou', sans-serif">站酷庆科黄油体</option>
+                                    <option value="'ZCOOL KuaiLe', cursive">站酷快乐体</option>
+                                    <option value="'Zhi Mang Xing', cursive">志芒星</option>
+                                    <option value="'Liu Jian Mao Cao', cursive">刘建毛草</option>
+                                    <option value="'Long Cang', cursive">龙藏体</option>
+                                </optgroup>
+                                
+                                <!-- 设计字体 -->
+                                <optgroup label="设计字体">
+                                    <option value="'Playfair Display', serif">Playfair Display</option>
+                                    <option value="'Merriweather', serif">Merriweather</option>
+                                    <option value="'Crimson Text', serif">Crimson Text</option>
+                                    <option value="'Libre Baskerville', serif">Libre Baskerville</option>
+                                    <option value="'Dancing Script', cursive">Dancing Script</option>
+                                    <option value="'Pacifico', cursive">Pacifico</option>
+                                    <option value="'Lobster', cursive">Lobster</option>
+                                    <option value="'Great Vibes', cursive">Great Vibes</option>
+                                </optgroup>
+                                
+                                <!-- 编程字体 -->
+                                <optgroup label="编程字体">
+                                    <option value="'Fira Code', monospace">Fira Code</option>
+                                    <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                                    <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                                    <option value="'Cascadia Code', monospace">Cascadia Code</option>
+                                    <option value="'Monaco', monospace">Monaco</option>
+                                    <option value="'Menlo', monospace">Menlo</option>
+                                    <option value="'Consolas', monospace">Consolas</option>
+                                    <option value="'Ubuntu Mono', monospace">Ubuntu Mono</option>
+                                    <option value="'Inconsolata', monospace">Inconsolata</option>
+                                    <option value="'Hack', monospace">Hack</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        
+                        <!-- 比例选择 -->
+                        <div class="ratio-selector">
+                            <label>比例 <span class="info-tooltip" title="选择卡片的宽高比例">ⓘ</span></label>
+                            <select id="ratioSelect" class="ratio-select">
+                                <option value="3:4" data-width="400" data-height="533">小红书3:4</option>
+                                <option value="1:1" data-width="400" data-height="400">正方形1:1</option>
+                                <option value="4:3" data-width="533" data-height="400">4:3</option>
+                                <option value="16:9" data-width="566" data-height="318">16:9</option>
+                                <option value="9:16" data-width="318" data-height="566">9:16</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- 主题配色 -->
+                    <div class="color-picker">
+                        <label>主题配色 <span class="info-tooltip" title="主题颜色影响模板的整体色调和强调色">ⓘ</span></label>
+                        <div class="color-buttons">
+                            <button class="color-btn red-btn active" data-theme="red" title="红色主题"></button>
+                            <button class="color-btn blue-btn" data-theme="blue" title="蓝色主题"></button>
+                            <button class="color-btn green-btn" data-theme="green" title="绿色主题"></button>
+                            <button class="color-btn purple-btn" data-theme="purple" title="紫色主题"></button>
+                            <button class="color-btn orange-btn" data-theme="orange" title="橙色主题"></button>
+                        </div>
+                    </div>
+                    
+                    <!-- 背景设置 -->
+                    <div class="bg-selector">
+                        <label>背景颜色 <span class="info-tooltip" title="背景颜色设置卡片的底色，可选择纯色背景">ⓘ</span></label>
+                        <div class="color-buttons bg-color-buttons">
+                            <button class="bg-color-btn" data-bg-color="#ffffff" style="background-color: #ffffff; border: 1px solid #ddd;" title="白色"></button>
+                            <button class="bg-color-btn" data-bg-color="#f8f9fa" style="background-color: #f8f9fa; border: 1px solid #ddd;" title="浅灰白"></button>
+                            <button class="bg-color-btn" data-bg-color="#e9ecef" style="background-color: #e9ecef; border: 1px solid #ddd;" title="灰白色"></button>
+                            <button class="bg-color-btn" data-bg-color="#dee2e6" style="background-color: #dee2e6; border: 1px solid #ddd;" title="浅灰色"></button>
+                            <button class="bg-color-btn" data-bg-color="#6c757d" style="background-color: #6c757d; border: 1px solid #ddd;" title="深灰色"></button>
+                            <button class="bg-color-btn" data-bg-color="#ff6b6b" style="background-color: #ff6b6b; border: 1px solid #ddd;" title="珊瑚红"></button>
+                            <button class="bg-color-btn" data-bg-color="#4ecdc4" style="background-color: #4ecdc4; border: 1px solid #ddd;" title="薄荷绿"></button>
+                            <button class="bg-color-btn" data-bg-color="#45b7d1" style="background-color: #45b7d1; border: 1px solid #ddd;" title="天空蓝"></button>
+                            <button class="bg-color-btn" data-bg-color="#96ceb4" style="background-color: #96ceb4; border: 1px solid #ddd;" title="柠檬绿"></button>
+                            <button class="bg-color-btn" data-bg-color="#ffeaa7" style="background-color: #ffeaa7; border: 1px solid #ddd;" title="奶油黄"></button>
+                            <button class="bg-color-btn" data-bg-color="#89c8d3" style="background-color: #89c8d3; border: 1px solid #ddd;" title="湖水蓝"></button>
+                            <button class="bg-color-btn" data-bg-color="#a5d6a7" style="background-color: #a5d6a7; border: 1px solid #ddd;" title="草地绿"></button>
+                            <button class="bg-color-btn" data-bg-color="#ffcc80" style="background-color: #ffcc80; border: 1px solid #ddd;" title="沙滩橙"></button>
+                            <button class="bg-color-btn" data-bg-color="#d7ccc8" style="background-color: #d7ccc8; border: 1px solid #ddd;" title="沙滩灰"></button>
+                            <button class="bg-color-btn" data-bg-color="#ffab91" style="background-color: #ffab91; border: 1px solid #ddd;" title="日落橙"></button>
+                            <button class="bg-color-btn" data-bg-color="#ff5252" style="background-color: #ff5252; border: 1px solid #ddd;" title="鲜红"></button>
+                            <button class="bg-color-btn" data-bg-color="#ff4081" style="background-color: #ff4081; border: 1px solid #ddd;" title="粉红"></button>
+                            <button class="bg-color-btn" data-bg-color="#673ab7" style="background-color: #673ab7; border: 1px solid #ddd;" title="深紫"></button>
+                            <button class="bg-color-btn" data-bg-color="#3f51b5" style="background-color: #3f51b5; border: 1px solid #ddd;" title="靛蓝"></button>
+                            <button class="bg-color-btn" data-bg-color="#00bcd4" style="background-color: #00bcd4; border: 1px solid #ddd;" title="青绿"></button>
+                        </div>
+                    </div>
+                    
+                    <!-- 背景图选择 -->
+                    <div class="bg-selector">
+                        <label>背景图片</label>
+                        <div class="bg-controls">
+                            <input type="file" id="bgFileInput" accept="image/*" class="bg-file-input">
+                            <button id="bgUploadBtn" class="bg-btn small-btn">
+                                <i class="fas fa-upload"></i>
+                                替换
+                            </button>
+                            <button id="bgClearBtn" class="bg-btn clear small-btn">
+                                <i class="fas fa-times"></i>
+                                清除
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 内容背景设置 -->
+                    <div class="bg-selector">
+                        <label>内容背景透明度: <span id="opacityValue">100</span>%</label>
+                        <input type="range" id="opacitySlider" min="0" max="100" value="100" class="slider">
+                    </div>
+                    
+                    <!-- 样式调整 -->
+                    <div class="style-controls">
+                        <div class="control-group">
+                            <label for="fontSizeSlider">字号: <span id="fontSizeValue">16</span>px</label>
+                            <input type="range" id="fontSizeSlider" min="12" max="24" value="16" class="slider">
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="paddingSlider">内边距: <span id="paddingValue">20</span>px</label>
+                            <input type="range" id="paddingSlider" min="10" max="40" value="20" class="slider">
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="borderRadiusSlider">圆角: <span id="borderRadiusValue">0</span>px</label>
+                            <input type="range" id="borderRadiusSlider" min="0" max="20" value="0" class="slider">
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="cardWidthSlider">卡片宽度: <span id="cardWidthValue">400</span>px</label>
+                            <input type="range" id="cardWidthSlider" min="300" max="600" value="400" class="slider">
+                        </div>
+                        
+                        <div class="control-group">
+                            <label for="cardHeightSlider">卡片高度: <span id="cardHeightValue">533</span>px</label>
+                            <input type="range" id="cardHeightSlider" min="400" max="800" value="533" class="slider">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h3><i class="fas fa-eye"></i> 实时预览</h3>
+                    <div class="preview-controls">
+                        <div class="export-controls">
+                            <button id="exportAllBtn" class="export-btn small-btn">
+                                <i class="fas fa-download"></i>
+                                导出所有图片
+                            </button>
+                            <button id="exportZipBtn" class="export-btn small-btn">
+                                <i class="fas fa-file-archive"></i>
+                                导出成压缩包
+                            </button>
+                            <button id="batchProcessBtn" class="export-btn small-btn">
+                                <i class="fas fa-batch"></i>
+                                批量处理文件
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="preview-container">
+                    <!-- 长图模式 -->
+                    <div class="long-image-area" id="longImageArea" style="display: none;">
+                        <div id="cardPreview" class="card xiaohongshu-template red-theme">
+                            <div class="card-content" id="cardContent">
+                                <h1>欢迎使用MD2Card</h1>
+                                <p>在左侧输入Markdown内容</p>
+                                <p>选择模板和样式</p>
+                                <p>实时预览效果</p>
+                                <p>一键导出高清图片</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 小红书模式 -->
+                    <div class="xiaohongshu-area" id="xiaohongshuArea">
+                        <div class="xiaohongshu-grid" id="xiaohongshuGrid">
+                            <!-- 小红书卡片将在这里动态生成 -->
+                        </div>
+                        
+                        <!-- 分页控制 -->
+                        <div class="pagination-controls" id="paginationControls" style="display: none;">
+                            <button id="prevBtn" class="page-btn">
+                                <i class="fas fa-chevron-left"></i>
+                                上一页
+                            </button>
+                            <span id="pageInfo" class="page-info">第 1 页，共 1 页</span>
+                            <button id="nextBtn" class="page-btn">
+                                下一页
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- 批量预览按钮 -->
+                        <div class="batch-export" id="batchExport" style="display: none;">
+                            <button id="downloadAllBtn" class="export-btn batch-btn">
+                                <i class="fas fa-eye"></i>
+                                批量预览所有卡片
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script-fixed.js"></script>
+</body>
+</html>
