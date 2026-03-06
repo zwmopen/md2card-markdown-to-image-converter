@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD2Card - Markdown 转知识卡片工具</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Montserrat:wght@300;400;500;600;700&family=Source+Sans+Pro:wght@300;400;600;700&family=Raleway:wght@300;400;500;600;700&family=Ubuntu:wght@300;400;500;700&family=Nunito:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&family=PT+Sans:wght@400;700&family=Noto+Sans:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@300;400;500;700&family=Source+Han+Sans+SC:wght@300;400;500;700&family=Source+Han+Serif+SC:wght@300;400;500;700&family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=ZCOOL+QingKe+HuangYou&family=ZCOOL+KuaiLe&family=Zhi+Mang+Xing&family=Liu+Jian+Mao+Cao&family=Long+Cang&family=Playfair+Display:wght@400;500;600;700&family=Merriweather:wght@300;400;700&family=Crimson+Text:wght@400;600&family=Libre+Baskerville:wght@400;700&family=Dancing+Script:wght@400;500;600;700&family=Pacifico&family=Lobster&family=Great+Vibes&family=Fira+Code:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&family=Ubuntu+Mono:wght@400;700&family=Inconsolata:wght@300;400;500;600;700" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- JSZip for zip export -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="editor-section">
+                <div class="editor-header">
+                    <h3><i class="fas fa-edit"></i> Markdown编辑器</h3>
+                    <div class="editor-controls">
+                        <input type="file" id="mdFileInput" accept=".md,.markdown" style="display: none;">
+                        <input type="file" id="mdFolderInput" webkitdirectory directory multiple accept=".md,.markdown" style="display: none;">
+                        <button id="uploadMdBtn" class="upload-btn">
+                            <i class="fas fa-file-import"></i>
+                            上传文件
+                        </button>
+                        <button id="uploadFolderBtn" class="upload-btn">
+                            <i class="fas fa-folder-open"></i>
+                            上传文件夹
+                        </button>
+                    </div>
+                </div>
+                <textarea id="markdownInput" class="markdown-input" placeholder="# 🌸 小红书分享
+
+## ✨ 今日好物推荐
+
+最近发现了超棒的宝藏好物！
+
+### 🎯 推荐理由
+- **颜值超高** - 简约设计，百搭风格
+- **性价比** - 价格亲民，质量优秀  
+- **实用性** - 日常必备，提升生活品质
+
+### 💡 使用心得
+用了一段时间，真的太满意了！
+强烈推荐给大家 ✨
+
+---
+*#好物推荐 #生活分享 #种草*"># 🌸 小红书分享
+
+## ✨ 今日好物推荐
+
+最近发现了超棒的宝藏好物！
+
+### 🎯 推荐理由
+- **颜值超高** - 简约设计，百搭风格
+- **性价比** - 价格亲民，质量优秀  
+- **实用性** - 日常必备，提升生活品质
+
+### 💡 使用心得
+用了一段时间，真的太满意了！
+强烈推荐给大家 ✨
+
+---
+*#好物推荐 #生活分享 #种草*</textarea>
+            </div>
+            
+            <div class="preview-section">
+                <div class="preview-header">
+                    <h3><i class="fas fa-eye"></i> 实时预览</h3>
+                    <div class="preview-controls">
+                        <div class="export-controls">
+                            <div class="export-dropdown">
+                                <button id="exportBtn" class="export-btn main-btn">
+                                    <i class="fas fa-download"></i>
+                                    导出PNG
+                                    <i class="fas fa-chevron-down dropdown-arrow"></i>
+                                </button>
+                                <div class="export-dropdown-menu" id="exportDropdownMenu">
+                                    <button id="exportZipBtn" class="dropdown-item">
+                                        <i class="fas fa-file-archive"></i>
+                                        导出ZIP
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="preview-container">
+                    <div class="xiaohongshu-area" id="xiaohongshuArea">
+                        <div class="xiaohongshu-grid" id="xiaohongshuGrid">
+                            <!-- 小红书卡片将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-section">
+                <div class="controls-header">
+                    <h3><i class="fas fa-sliders-h"></i> 样式控制</h3>
+                </div>
+                
+                <div class="controls-content">
+                    <div class="template-font-row">
+                        <div class="template-selector">
+                            <label>模板</label>
+                            <select id="templateSelect" class="template-select">
+                                <option value="xiaohongshu">小红书经典</option>
+                                <option value="minimal">极简风格</option>
+                                <option value="gradient">渐变背景</option>
+                                <option value="shadow">阴影卡片</option>
+                                <option value="border">边框装饰</option>
+                                <option value="rounded">圆角设计</option>
+                                <option value="modern">现代简约</option>
+                                <option value="elegant">优雅风格</option>
+                                <option value="vibrant">活力色彩</option>
+                                <option value="soft">柔和色调</option>
+                                <option value="bold">大胆设计</option>
+                                <option value="clean">清新风格</option>
+                                <option value="warm">温暖色调</option>
+                                <option value="cool">冷色调</option>
+                                <option value="nature">自然风格</option>
+                                <option value="tech">科技风格</option>
+                                <option value="retro">复古风格</option>
+                                <option value="neon">霓虹风格</option>
+                                <option value="pastel">马卡龙色</option>
+                                <option value="dark">深色主题</option>
+                                <option value="light">浅色主题</option>
+                                <option value="colorful">多彩风格</option>
+                                <option value="monochrome">单色风格</option>
+                                <option value="artistic">艺术风格</option>
+                                <option value="business">商务风格</option>
+                                <option value="casual">休闲风格</option>
+                                <option value="luxury">奢华风格</option>
+                                <option value="minimalist">极简主义</option>
+                                <option value="vintage">复古怀旧</option>
+                                <option value="futuristic">未来科技</option>
+                                <option value="organic">有机风格</option>
+                                <option value="geometric">几何图形</option>
+                                <option value="handwritten">手写风格</option>
+                            </select>
+                        </div>
+                        
+                        <div class="font-selector">
+                            <label>字体</label>
+                            <select id="fontSelect" class="font-select">
+                                <option value="default">默认字体</option>
+                                <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                                <option value="'SimHei', sans-serif">黑体</option>
+                                <option value="'SimSun', serif">宋体</option>
+                                <option value="'KaiTi', serif">楷体</option>
+                                <option value="'FangSong', serif">仿宋</option>
+                                <option value="'PingFang SC', sans-serif">苹方</option>
+                                <option value="'Hiragino Sans GB', sans-serif">冬青黑体</option>
+                            </select>
+                        </div>
+                        
+                        <div class="ratio-selector">
+                            <label>比例</label>
+                            <select id="ratioSelect" class="ratio-select">
+                                <option value="3:4" data-width="400" data-height="533">小红书3:4</option>
+                                <option value="1:1" data-width="400" data-height="400">正方形1:1</option>
+                                <option value="4:3" data-width="533" data-height="400">4:3</option>
+                                <option value="16:9" data-width="566" data-height="318">16:9</option>
+                                <option value="9:16" data-width="318" data-height="566">9:16</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="color-picker">
+                        <label>主题配色</label>
+                        <div class="color-buttons">
+                            <button class="color-btn red-btn active" data-theme="red" title="红色主题"></button>
+                            <button class="color-btn blue-btn" data-theme="blue" title="蓝色主题"></button>
+                            <button class="color-btn green-btn" data-theme="green" title="绿色主题"></button>
+                            <button class="color-btn purple-btn" data-theme="purple" title="紫色主题"></button>
+                            <button class="color-btn orange-btn" data-theme="orange" title="橙色主题"></button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-selector">
+                        <label>背景颜色</label>
+                        <div class="color-buttons bg-color-buttons">
+                            <button class="bg-color-btn" data-bg-color="#ffffff" style="background-color: #ffffff;" title="白色"></button>
+                            <button class="bg-color-btn" data-bg-color="#f8f9fa" style="background-color: #f8f9fa;" title="浅灰白"></button>
+                            <button class="bg-color-btn" data-bg-color="#e9ecef" style="background-color: #e9ecef;" title="灰白色"></button>
+                            <button class="bg-color-btn" data-bg-color="#dee2e6" style="background-color: #dee2e6;" title="浅灰色"></button>
+                            <button class="bg-color-btn" data-bg-color="#6c757d" style="background-color: #6c757d;" title="深灰色"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
