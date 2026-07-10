@@ -1,4 +1,6 @@
-export function injectBaselineStyles() {
+(function (root) {
+'use strict';
+function injectBaselineStyles() {
     if (document.getElementById('md2card-baseline-styles')) return;
     const style = document.createElement('style');
     style.id = 'md2card-baseline-styles';
@@ -17,3 +19,5 @@ export function injectBaselineStyles() {
     `;
     document.head.appendChild(style);
 }
+root.MD2CardStyles = { injectBaselineStyles };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
