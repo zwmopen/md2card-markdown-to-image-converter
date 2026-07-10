@@ -1,48 +1,64 @@
-# 依赖项
+# Dependencies
 node_modules/
 
-# 构建文件
+# Build output
 build/
 dist/
+coverage/
+.nyc_output/
 
-# 日志文件
+# Logs
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# 临时文件
+# Temporary and test output
 *.tmp
 *.temp
 .temp/
 .tmp/
+test-results/
+playwright-report/
+.cache/
+.vite/
 
-# 编辑器文件
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 系统文件
+# Operating system
 .DS_Store
 Thumbs.db
 
-# 环境变量文件
+# Environment variables and credentials
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+cookies.json
+.npmrc
 
-# 压缩文件
+# Compressed export files
 *.zip
 *.tar.gz
 *.rar
 
-# 图片导出
+# Generated image exports
 *.png
 *.jpg
 *.jpeg
 
-# 其他
+# Tool-specific local files
 MD2Card - Markdown 转知识卡片工具_files/
 .codebuddy/
