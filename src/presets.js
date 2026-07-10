@@ -1,4 +1,6 @@
-export const TEMPLATE_STYLES = {
+(function (root) {
+'use strict';
+const TEMPLATE_STYLES = {
     xiaohongshu: { background: '#ffffff', color: '#242424', accent: '#ff2442' },
     minimal: { background: '#ffffff', color: '#202124', accent: '#202124' },
     gradient: { background: 'linear-gradient(145deg,#fff1f4,#eef4ff)', color: '#202124', accent: '#6c5ce7' },
@@ -62,6 +64,8 @@ export const TEMPLATE_STYLES = {
     medium_article: { background: '#ffffff', color: '#242424', accent: '#1a8917' }
 };
 
-export const THEME_ACCENTS = {
+const THEME_ACCENTS = {
     red: '#ff2442', blue: '#1677ff', green: '#16a34a', purple: '#7c3aed', orange: '#f97316'
 };
+root.MD2CardPresets = { TEMPLATE_STYLES, THEME_ACCENTS };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
