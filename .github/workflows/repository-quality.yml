@@ -1,0 +1,72 @@
+name: Repository quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Run product regression suite
+        run: npm run verify
+
+      - name: Validate public entry files
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const required = [
+            'index.html',
+            'style.css',
+            'script.js',
+            'src/core.js',
+            'src/app.js',
+            'docs/PARITY_MATRIX.md',
+            'README.md',
+            'SECURITY.md'
+          ];
+          const missing = required.filter((file) => !fs.existsSync(file));
+          if (missing.length) {
+            throw new Error(`Missing required product files: ${missing.join(', ')}`);
+          }
+
+          const html = fs.readFileSync('index.html', 'utf8');
+          for (const marker of ['<meta name="viewport"', 'script.js', 'style.css']) {
+            if (!html.includes(marker)) {
+              throw new Error(`index.html is missing required marker: ${marker}`);
+            }
+          }
+          NODE
+
+      - name: Reject secrets and oversized source files
+        shell: bash
+        run: |
+          forbidden=$(find . -type f -not -path './.git/*' \( \
+            -name '.env' -o -name '.env.*' -o -name '*.pem' -o -name '*.key' -o -name 'credentials.json' \
+          \) -print)
+          if [ -n "$forbidden" ]; then
+            echo "Forbidden secret-like files are tracked:"
+            echo "$forbidden"
+            exit 1
+          fi
+
+          large_files=$(find . -type f -not -path './.git/*' -size +20M -print)
+          if [ -n "$large_files" ]; then
+            echo "Files larger than 20 MB are not allowed in the renderer source repository:"
+            echo "$large_files"
+            exit 1
+          fi
+
+      - name: Check whitespace errors
+        run: git diff --check
