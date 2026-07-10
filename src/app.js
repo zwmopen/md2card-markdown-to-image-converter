@@ -1,6 +1,16 @@
-import { extractTitle, sanitizeFilename, splitMarkdown, estimatePageCapacity, sortMarkdownFiles } from './core.js';
-import { TEMPLATE_STYLES, THEME_ACCENTS } from './presets.js';
-import { injectBaselineStyles } from './styles.js';
+(function (root) {
+'use strict';
+
+const core = root.MD2CardCore;
+const presets = root.MD2CardPresets;
+const styles = root.MD2CardStyles;
+if (!core || !presets || !styles) {
+    throw new Error('MD2Card 运行时依赖加载不完整');
+}
+
+const { extractTitle, sanitizeFilename, splitMarkdown, estimatePageCapacity, sortMarkdownFiles } = core;
+const { TEMPLATE_STYLES, THEME_ACCENTS } = presets;
+const { injectBaselineStyles } = styles;
 
 class MD2Card {
     constructor() {
@@ -13,7 +23,7 @@ class MD2Card {
         this.initMarked();
         this.initEventListeners();
         this.updatePreview();
-        window.md2cardApp = this;
+        root.md2cardApp = this;
     }
 
     byId(id) { return document.getElementById(id); }
@@ -35,8 +45,8 @@ class MD2Card {
     }
 
     initMarked() {
-        if (!window.marked) throw new Error('Marked.js 未加载');
-        marked.setOptions({ breaks: true, gfm: true });
+        if (!root.marked) throw new Error('Marked.js 未加载');
+        root.marked.setOptions({ breaks: true, gfm: true });
     }
 
     initEventListeners() {
@@ -45,7 +55,9 @@ class MD2Card {
             this.currentPage = 0;
             this.updatePreview();
         });
-        [this.templateSelect, this.fontSelect].forEach(el => this.listen(el, 'change', () => this.updatePreview()));
+        [this.templateSelect, this.fontSelect].forEach(element => {
+            this.listen(element, 'change', () => this.updatePreview());
+        });
         this.listen(this.ratioSelect, 'change', () => this.applyRatio());
 
         const sliders = [
@@ -59,24 +71,24 @@ class MD2Card {
             this.updatePreview();
         }));
 
-        this.colorBtns.forEach(btn => this.listen(btn, 'click', () => {
+        this.colorBtns.forEach(button => this.listen(button, 'click', () => {
             this.colorBtns.forEach(item => item.classList.remove('active'));
-            btn.classList.add('active');
+            button.classList.add('active');
             this.updatePreview();
         }));
-        this.bgColorBtns.forEach(btn => this.listen(btn, 'click', () => {
+        this.bgColorBtns.forEach(button => this.listen(button, 'click', () => {
             this.bgColorBtns.forEach(item => item.classList.remove('active'));
-            btn.classList.add('active');
+            button.classList.add('active');
             this.backgroundImage = '';
             this.updatePreview();
         }));
 
-        this.listen(this.uploadMdBtn, 'click', () => this.mdFileInput?.click());
-        this.listen(this.uploadFolderBtn, 'click', () => this.mdFolderInput?.click());
+        this.listen(this.uploadMdBtn, 'click', () => this.mdFileInput && this.mdFileInput.click());
+        this.listen(this.uploadFolderBtn, 'click', () => this.mdFolderInput && this.mdFolderInput.click());
         this.listen(this.mdFileInput, 'change', event => this.loadFiles(event.target.files, false));
         this.listen(this.mdFolderInput, 'change', event => this.loadFiles(event.target.files, true));
-        this.listen(this.bgUploadBtn, 'click', () => this.bgFileInput?.click());
-        this.listen(this.bgFileInput, 'change', event => this.loadBackground(event.target.files?.[0]));
+        this.listen(this.bgUploadBtn, 'click', () => this.bgFileInput && this.bgFileInput.click());
+        this.listen(this.bgFileInput, 'change', event => this.loadBackground(event.target.files && event.target.files[0]));
         this.listen(this.bgClearBtn, 'click', () => {
             this.backgroundImage = '';
             if (this.bgFileInput) this.bgFileInput.value = '';
@@ -91,35 +103,37 @@ class MD2Card {
             event.stopPropagation();
             this.exportZip();
         });
-        document.addEventListener('click', () => this.exportDropdownMenu?.classList.remove('show'));
         this.listen(this.prevBtn, 'click', () => this.changePage(-1));
         this.listen(this.nextBtn, 'click', () => this.changePage(1));
         this.listen(this.downloadAllBtn, 'click', () => this.toggleBatchPreview());
     }
 
     getSettings() {
-        const activeTheme = document.querySelector('.color-btn.active')?.dataset.theme || 'red';
-        const activeBg = document.querySelector('.bg-color-btn.active')?.dataset.bgColor || '';
+        const activeTheme = document.querySelector('.color-btn.active');
+        const activeBg = document.querySelector('.bg-color-btn.active');
+        const theme = activeTheme ? activeTheme.dataset.theme : 'red';
+        const background = activeBg ? activeBg.dataset.bgColor : '';
         return {
-            template: this.templateSelect?.value || 'xiaohongshu',
-            fontFamily: !this.fontSelect?.value || this.fontSelect.value === 'default'
+            template: this.templateSelect ? this.templateSelect.value : 'xiaohongshu',
+            fontFamily: !this.fontSelect || this.fontSelect.value === 'default'
                 ? "-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif"
                 : this.fontSelect.value,
-            width: Number(this.cardWidthSlider?.value || 400),
-            height: Number(this.cardHeightSlider?.value || 533),
-            fontSize: Number(this.fontSizeSlider?.value || 16),
-            padding: Number(this.paddingSlider?.value || 20),
-            radius: Number(this.borderRadiusSlider?.value || 0),
-            opacity: Number(this.opacitySlider?.value || 100) / 100,
-            accent: THEME_ACCENTS[activeTheme] || THEME_ACCENTS.red,
-            backgroundColor: activeBg || null
+            width: Number(this.cardWidthSlider ? this.cardWidthSlider.value : 400),
+            height: Number(this.cardHeightSlider ? this.cardHeightSlider.value : 533),
+            fontSize: Number(this.fontSizeSlider ? this.fontSizeSlider.value : 16),
+            padding: Number(this.paddingSlider ? this.paddingSlider.value : 20),
+            radius: Number(this.borderRadiusSlider ? this.borderRadiusSlider.value : 0),
+            opacity: Number(this.opacitySlider ? this.opacitySlider.value : 100) / 100,
+            accent: THEME_ACCENTS[theme] || THEME_ACCENTS.red,
+            backgroundColor: background || null
         };
     }
 
     applyRatio() {
-        const option = this.ratioSelect?.selectedOptions?.[0];
+        const option = this.ratioSelect && this.ratioSelect.selectedOptions[0];
         if (!option) return;
-        const { width, height } = option.dataset;
+        const width = option.dataset.width;
+        const height = option.dataset.height;
         if (width && this.cardWidthSlider) this.cardWidthSlider.value = width;
         if (height && this.cardHeightSlider) this.cardHeightSlider.value = height;
         if (this.cardWidthValue) this.cardWidthValue.textContent = width;
@@ -166,21 +180,21 @@ class MD2Card {
 
     getDocuments() {
         if (this.files.length) return this.files;
-        return [{ name: `${extractTitle(this.markdownInput?.value)}.md`, text: this.markdownInput?.value || '' }];
+        const text = this.markdownInput ? this.markdownInput.value : '';
+        return [{ name: `${extractTitle(text)}.md`, text }];
     }
 
     buildPages() {
-        const settings = this.getSettings();
-        const capacity = estimatePageCapacity(settings);
+        const capacity = estimatePageCapacity(this.getSettings());
         const result = [];
-        this.getDocuments().forEach((doc, documentIndex) => {
-            const chunks = splitMarkdown(doc.text, capacity);
+        this.getDocuments().forEach((documentItem, documentIndex) => {
+            const chunks = splitMarkdown(documentItem.text, capacity);
             chunks.forEach((markdown, pageIndex) => result.push({
                 documentIndex,
                 pageIndex,
                 pageCount: chunks.length,
-                title: extractTitle(doc.text, `document-${documentIndex + 1}`),
-                sourceName: doc.name,
+                title: extractTitle(documentItem.text, `document-${documentIndex + 1}`),
+                sourceName: documentItem.name,
                 markdown
             }));
         });
@@ -192,13 +206,16 @@ class MD2Card {
         this.pages = this.buildPages();
         this.currentPage = Math.min(this.currentPage, Math.max(0, this.pages.length - 1));
         this.xiaohongshuGrid.innerHTML = '';
-        this.pages.forEach((page, index) => this.xiaohongshuGrid.appendChild(this.createCard(page, index)));
+        this.pages.forEach((page, index) => {
+            this.xiaohongshuGrid.appendChild(this.createCard(page, index));
+        });
         this.updateVisibility();
     }
 
     createCard(page, index) {
         const settings = this.getSettings();
         const preset = TEMPLATE_STYLES[settings.template] || TEMPLATE_STYLES.xiaohongshu;
+        const radius = preset.radius == null ? settings.radius : preset.radius;
         const card = document.createElement('article');
         card.className = `card ${settings.template}-template`;
         card.dataset.pageIndex = String(index);
@@ -207,29 +224,34 @@ class MD2Card {
             width: `${settings.width}px`,
             height: `${settings.height}px`,
             padding: `${settings.padding}px`,
-            borderRadius: `${preset.radius ?? settings.radius}px`,
+            borderRadius: `${radius}px`,
             color: preset.color,
             background: this.backgroundImage
                 ? `url("${this.backgroundImage}") center/cover no-repeat`
                 : settings.backgroundColor || preset.background,
             boxShadow: preset.shadow || '0 10px 30px rgba(30,35,45,.12)',
             border: preset.border || '1px solid rgba(0,0,0,.06)',
-            overflow: 'hidden', position: 'relative', flex: '0 0 auto'
+            overflow: 'hidden',
+            position: 'relative',
+            flex: '0 0 auto'
         });
         card.style.setProperty('--card-accent', settings.accent || preset.accent);
 
         const content = document.createElement('div');
         content.className = 'card-content';
         Object.assign(content.style, {
-            height: '100%', overflow: 'hidden', fontFamily: settings.fontFamily,
-            fontSize: `${settings.fontSize}px`, lineHeight: '1.65',
+            height: '100%',
+            overflow: 'hidden',
+            fontFamily: settings.fontFamily,
+            fontSize: `${settings.fontSize}px`,
+            lineHeight: '1.65',
             background: this.backgroundImage || settings.backgroundColor
                 ? `rgba(255,255,255,${settings.opacity})`
                 : 'transparent',
-            borderRadius: `${Math.max(0, (preset.radius ?? settings.radius) - 4)}px`,
+            borderRadius: `${Math.max(0, radius - 4)}px`,
             padding: this.backgroundImage || settings.backgroundColor ? '12px' : '0'
         });
-        content.innerHTML = marked.parse(page.markdown || '');
+        content.innerHTML = root.marked.parse(page.markdown || '');
         content.querySelectorAll('a').forEach(link => {
             link.rel = 'noopener noreferrer';
             link.target = '_blank';
@@ -247,7 +269,7 @@ class MD2Card {
     }
 
     updateVisibility() {
-        const cards = Array.from(this.xiaohongshuGrid?.children || []);
+        const cards = Array.from(this.xiaohongshuGrid ? this.xiaohongshuGrid.children : []);
         cards.forEach((card, index) => {
             card.style.display = this.showAllPages || index === this.currentPage ? 'block' : 'none';
         });
@@ -278,11 +300,37 @@ class MD2Card {
     }
 
     async cardToCanvas(card) {
-        if (!window.html2canvas) throw new Error('html2canvas 未加载');
-        if (document.fonts?.ready) await document.fonts.ready;
-        return html2canvas(card, {
-            scale: 2, useCORS: true, allowTaint: false, backgroundColor: null, logging: false
-        });
+        if (!root.html2canvas) throw new Error('html2canvas 未加载');
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+        const hidden = getComputedStyle(card).display === 'none';
+        const previous = {
+            display: card.style.display,
+            position: card.style.position,
+            left: card.style.left,
+            top: card.style.top,
+            visibility: card.style.visibility
+        };
+        if (hidden) {
+            Object.assign(card.style, {
+                display: 'block',
+                position: 'fixed',
+                left: '-10000px',
+                top: '0',
+                visibility: 'visible'
+            });
+        }
+        try {
+            return await root.html2canvas(card, {
+                scale: 2,
+                useCORS: true,
+                allowTaint: false,
+                backgroundColor: null,
+                logging: false
+            });
+        } finally {
+            if (hidden) Object.assign(card.style, previous);
+        }
     }
 
     downloadBlob(blob, filename) {
@@ -297,7 +345,7 @@ class MD2Card {
     }
 
     async exportCurrentPng() {
-        const card = this.xiaohongshuGrid?.children?.[this.currentPage];
+        const card = this.xiaohongshuGrid && this.xiaohongshuGrid.children[this.currentPage];
         if (!card) return;
         try {
             this.notify('正在生成 PNG…');
@@ -313,21 +361,23 @@ class MD2Card {
     }
 
     async exportZip() {
-        if (!window.JSZip) return this.notify('JSZip 未加载', 'error');
-        const cards = Array.from(this.xiaohongshuGrid?.children || []);
+        if (!root.JSZip) return this.notify('JSZip 未加载', 'error');
+        const cards = Array.from(this.xiaohongshuGrid ? this.xiaohongshuGrid.children : []);
         if (!cards.length) return;
-        const zip = new JSZip();
+        const zip = new root.JSZip();
         try {
-            for (let i = 0; i < cards.length; i += 1) {
-                this.notify(`正在生成 ${i + 1}/${cards.length}…`);
-                const canvas = await this.cardToCanvas(cards[i]);
+            for (let index = 0; index < cards.length; index += 1) {
+                this.notify(`正在生成 ${index + 1}/${cards.length}…`);
+                const canvas = await this.cardToCanvas(cards[index]);
                 const data = canvas.toDataURL('image/png').split(',')[1];
-                const page = this.pages[i];
+                const page = this.pages[index];
                 zip.folder(sanitizeFilename(page.title))
                     .file(`${String(page.pageIndex + 1).padStart(2, '0')}.png`, data, { base64: true });
             }
             const blob = await zip.generateAsync({
-                type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 }
+                type: 'blob',
+                compression: 'DEFLATE',
+                compressionOptions: { level: 6 }
             });
             const rootName = this.files.length === 1 ? extractTitle(this.files[0].text) : 'md2card-batch';
             this.downloadBlob(blob, `${sanitizeFilename(rootName)}.zip`);
@@ -355,3 +405,4 @@ class MD2Card {
 
 injectBaselineStyles();
 new MD2Card();
+})(typeof globalThis !== 'undefined' ? globalThis : this);
