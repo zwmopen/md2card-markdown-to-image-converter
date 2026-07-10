@@ -1,0 +1,12 @@
+{
+  "name": "md2card-markdown-to-image-converter",
+  "version": "1.0.0-baseline.2",
+  "private": true,
+  "description": "MD2Card functional clone baseline and regression tests",
+  "scripts": {
+    "check": "node --check script.js && node --check src/app.js && node --check src/core.js && node --check src/presets.js && node --check src/styles.js",
+    "test": "node --test tests/*.test.cjs",
+    "verify": "npm run check && npm test"
+  },
+  "engines": { "node": ">=20" }
+}
