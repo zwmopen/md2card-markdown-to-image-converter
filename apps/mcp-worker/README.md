@@ -9,6 +9,8 @@
 - `render_markdown`：提交单篇 Markdown 渲染
 - `batch_render`：提交最多 20 篇 Markdown 批量渲染
 - `get_job`：查询异步任务状态和下载地址
+- `cancel_job`：取消排队中或运行中的任务
+- `retry_job`：重试失败或已取消的任务
 - `/health`：公开健康检查
 - 可选 Bearer Token 保护 `/mcp`
 
@@ -22,9 +24,11 @@
 POST /v1/render
 POST /v1/batch
 GET  /v1/jobs/:jobId
+POST /v1/jobs/:jobId/cancel
+POST /v1/jobs/:jobId/retry
 ```
 
-如果未配置渲染服务，参数校验工具仍可使用；真正渲染工具会明确返回 `renderer_not_configured`，不会伪造图片结果。
+如果未配置渲染服务，参数校验工具仍可使用；需要访问渲染器的工具会明确返回 `renderer_not_configured`，不会伪造图片或任务结果。
 
 ## 本地联调
 
@@ -86,7 +90,7 @@ npx wrangler secret put MCP_ACCESS_TOKEN
 - `RENDER_API_BASE_URL` 必须使用 HTTPS，localhost 除外。
 - `RENDER_API_TOKEN` 必须与渲染服务中的同名变量一致。
 - `MCP_ACCESS_TOKEN` 可选；配置后，访问 `/mcp` 必须携带 `Authorization: Bearer <token>`。
-- 渲染服务的运行、Docker 和安全边界见 [`../render-service/README.md`](../render-service/README.md)。
+- 渲染服务的运行、Docker、任务控制和安全边界见 [`../render-service/README.md`](../render-service/README.md)。
 - 生产版最终应升级到 OAuth，而不是长期依赖共享 Token。
 
 ## 单篇请求参数
@@ -119,6 +123,18 @@ npx wrangler secret put MCP_ACCESS_TOKEN
 ```
 
 随后通过 `get_job` 查询，完成后可获得图片或 ZIP 下载地址。
+
+## 取消与重试
+
+`cancel_job` 和 `retry_job` 都只需要：
+
+```json
+{
+  "jobId": "任务 ID"
+}
+```
+
+取消适用于 `queued` 和 `running`。重试适用于 `failed` 和 `cancelled`，并返回新的任务 ID；新任务包含 `retryOf` 指向原任务。
 
 ## 校验
 
