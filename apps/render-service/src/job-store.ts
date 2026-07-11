@@ -17,7 +17,7 @@ function isRenderJob(value: unknown): value is RenderJob {
   return typeof job.id === "string"
     && typeof job.token === "string"
     && (job.kind === "single" || job.kind === "batch")
-    && ["queued", "running", "completed", "failed"].includes(String(job.status))
+    && ["queued", "running", "completed", "failed", "cancelled"].includes(String(job.status))
     && typeof job.createdAt === "string"
     && typeof job.updatedAt === "string"
     && typeof job.expiresAt === "string";
