@@ -5,6 +5,7 @@ import {
   BatchRenderRequestSchema,
   CancelJobRequestSchema,
   DEFAULT_MAX_BATCH_SIZE,
+  DownloadResultRequestSchema,
   GetJobRequestSchema,
   RenderRequestSchema,
   RetryJobRequestSchema,
@@ -14,6 +15,7 @@ import { parsePositiveInteger } from "./env";
 import {
   batchRender,
   cancelRenderJob,
+  downloadRenderResult,
   getRenderJob,
   RendererConfigurationError,
   RendererRequestError,
@@ -91,7 +93,7 @@ function errorToolResult(error: unknown) {
 export function createMd2CardServer(env: Env): McpServer {
   const server = new McpServer({
     name: "MD2Card MCP",
-    version: "0.2.0",
+    version: "0.3.0",
   });
 
   server.registerTool(
@@ -105,7 +107,7 @@ export function createMd2CardServer(env: Env): McpServer {
       jsonToolResult({
         ok: true,
         service: "md2card-mcp",
-        version: "0.2.0",
+        version: "0.3.0",
         transport: "streamable-http",
         rendererConfigured: Boolean(env.RENDER_API_BASE_URL?.trim()),
         maxBatchSize: parsePositiveInteger(
@@ -119,6 +121,7 @@ export function createMd2CardServer(env: Env): McpServer {
           "render_markdown",
           "batch_render",
           "get_job",
+          "download_result",
           "cancel_job",
           "retry_job",
         ],
@@ -126,6 +129,7 @@ export function createMd2CardServer(env: Env): McpServer {
           single: "POST /v1/render",
           batch: "POST /v1/batch",
           job: "GET /v1/jobs/:jobId",
+          result: "GET /v1/jobs/:jobId/result?prefer=auto|archive|primary",
           cancel: "POST /v1/jobs/:jobId/cancel",
           retry: "POST /v1/jobs/:jobId/retry",
         },
@@ -206,13 +210,30 @@ export function createMd2CardServer(env: Env): McpServer {
     "get_job",
     {
       description:
-        "Get the status and downloadable result of a previously submitted MD2Card render job.",
+        "Get the status and complete file manifest of a previously submitted MD2Card render job.",
       inputSchema: GetJobRequestSchema.shape,
     },
     async (input) => {
       try {
         const request = GetJobRequestSchema.parse(input);
         return jsonToolResult(await getRenderJob(env, request));
+      } catch (error) {
+        return errorToolResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "download_result",
+    {
+      description:
+        "Return one normalized downloadable result for a completed job. Auto prefers a ZIP archive and falls back to the primary image.",
+      inputSchema: DownloadResultRequestSchema.shape,
+    },
+    async (input) => {
+      try {
+        const request = DownloadResultRequestSchema.parse(input);
+        return jsonToolResult(await downloadRenderResult(env, request));
       } catch (error) {
         return errorToolResult(error);
       }

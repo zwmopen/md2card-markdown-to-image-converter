@@ -1,6 +1,7 @@
 import type {
   BatchRenderRequest,
   CancelJobRequest,
+  DownloadResultRequest,
   GetJobRequest,
   RenderRequest,
   RendererResponse,
@@ -142,4 +143,16 @@ export function retryRenderJob(
   return requestRenderer(env, `/v1/jobs/${encodeURIComponent(input.jobId)}/retry`, {
     method: "POST",
   });
+}
+
+export function downloadRenderResult(
+  env: Env,
+  input: DownloadResultRequest,
+): Promise<RendererResponse> {
+  const query = new URLSearchParams({ prefer: input.prefer });
+  return requestRenderer(
+    env,
+    `/v1/jobs/${encodeURIComponent(input.jobId)}/result?${query.toString()}`,
+    { method: "GET" },
+  );
 }

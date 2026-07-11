@@ -5,6 +5,7 @@ export const DEFAULT_MAX_BATCH_SIZE = 20;
 export const ThemeModeSchema = z.enum(["light", "dark", "auto"]);
 export const SplitModeSchema = z.enum(["auto", "hr", "none"]);
 export const OutputFormatSchema = z.enum(["png", "jpeg", "webp"]);
+export const ResultPreferenceSchema = z.enum(["auto", "archive", "primary"]);
 
 export const RenderRequestSchema = z
   .object({
@@ -42,6 +43,7 @@ export type RenderRequest = z.infer<typeof RenderRequestSchema>;
 export type BatchRenderItem = z.infer<typeof BatchRenderItemSchema>;
 export type BatchRenderRequest = z.infer<typeof BatchRenderRequestSchema>;
 export type OutputFormat = z.infer<typeof OutputFormatSchema>;
+export type ResultPreference = z.infer<typeof ResultPreferenceSchema>;
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 

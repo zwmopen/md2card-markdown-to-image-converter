@@ -6,13 +6,16 @@ import type { RenderServiceConfig } from "./config.js";
 import {
   BatchRenderRequestSchema,
   RenderRequestSchema,
+  ResultPreferenceSchema,
+  type BatchRenderRequest,
   type RenderJob,
   type RenderRequest,
-  type BatchRenderRequest,
+  type RenderedFile,
 } from "./contracts.js";
 import { FileJobStore } from "./job-store.js";
 import { JobManager } from "./jobs.js";
 import { RenderEngine } from "./renderer.js";
+import { ResultSelectionError, selectJobResult } from "./result-selector.js";
 import { hasValidBearer } from "./security.js";
 import { OutputStore } from "./storage.js";
 
@@ -78,13 +81,17 @@ function fileUrl(base: string, job: RenderJob, relativePath: string): string {
   return `${base}/v1/jobs/${encodeURIComponent(job.id)}/files/${encodedPath}?token=${encodeURIComponent(job.token)}`;
 }
 
-function publicJob(job: RenderJob, base: string): Record<string, unknown> {
-  const files = job.result?.files.map((file) => ({
+function publicFile(base: string, job: RenderJob, file: RenderedFile) {
+  return {
     name: file.name,
     mediaType: file.mediaType,
     size: file.size,
     url: fileUrl(base, job, file.relativePath),
-  })) ?? [];
+  };
+}
+
+function publicJob(job: RenderJob, base: string): Record<string, unknown> {
+  const files = job.result?.files.map((file) => publicFile(base, job, file)) ?? [];
   const primary = job.result?.primaryFile;
   const archive = job.result?.archiveFile;
   return {
@@ -107,6 +114,22 @@ function publicJob(job: RenderJob, base: string): Record<string, unknown> {
   };
 }
 
+function publicResult(job: RenderJob, base: string, preference: "auto" | "archive" | "primary") {
+  const selection = selectJobResult(job, preference);
+  return {
+    ok: true,
+    jobId: job.id,
+    status: job.status,
+    expiresAt: job.expiresAt,
+    ...(job.retryOf ? { retryOf: job.retryOf } : {}),
+    preference: selection.preference,
+    selected: publicFile(base, job, selection.selected),
+    primary: selection.primaryFile ? publicFile(base, job, selection.primaryFile) : null,
+    archive: selection.archiveFile ? publicFile(base, job, selection.archiveFile) : null,
+    files: selection.files.map((file) => publicFile(base, job, file)),
+  };
+}
+
 function requireApiAuth(request: IncomingMessage, config: RenderServiceConfig): void {
   const authorization = Array.isArray(request.headers.authorization)
     ? request.headers.authorization[0]
@@ -117,6 +140,13 @@ function requireApiAuth(request: IncomingMessage, config: RenderServiceConfig): 
 }
 
 function sendError(response: ServerResponse, error: unknown): void {
+  if (error instanceof ResultSelectionError) {
+    sendJson(response, error.status, {
+      ok: false,
+      error: { code: error.code, message: error.message },
+    });
+    return;
+  }
   if (error instanceof HttpError) {
     sendJson(response, error.status, {
       ok: false,
@@ -178,10 +208,11 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
         sendJson(response, 200, {
           ok: true,
           service: "md2card-render-service",
-          version: "0.3.0",
+          version: "0.4.0",
           renderer: "playwright-chromium",
           durableJobs: true,
           jobControl: ["cancel", "retry"],
+          resultPreferences: ResultPreferenceSchema.options,
           recoveredJobs,
           maxBatchSize: config.maxBatchSize,
           remoteImagesAllowed: config.allowRemoteImages,
@@ -314,6 +345,15 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
       }
 
       if (method === "GET") {
+        const resultMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/result$/);
+        if (resultMatch) {
+          const job = jobs.get(decodeURIComponent(resultMatch[1] || ""));
+          if (!job) throw new HttpError(404, "job_not_found", "Render job was not found");
+          const preference = ResultPreferenceSchema.parse(url.searchParams.get("prefer") || "auto");
+          sendJson(response, 200, publicResult(job, publicOrigin, preference));
+          return;
+        }
+
         const jobMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)$/);
         if (jobMatch) {
           const job = jobs.get(decodeURIComponent(jobMatch[1] || ""));

@@ -5,6 +5,7 @@ export const DEFAULT_MAX_BATCH_SIZE = 20;
 export const ThemeModeSchema = z.enum(["light", "dark", "auto"]);
 export const SplitModeSchema = z.enum(["auto", "hr", "none"]);
 export const OutputFormatSchema = z.enum(["png", "jpeg", "webp"]);
+export const ResultPreferenceSchema = z.enum(["auto", "archive", "primary"]);
 
 export const RenderRequestSchema = z
   .object({
@@ -44,6 +45,10 @@ export const JobActionRequestSchema = z
   })
   .strict();
 
+export const DownloadResultRequestSchema = JobActionRequestSchema.extend({
+  prefer: ResultPreferenceSchema.default("auto"),
+});
+
 export const GetJobRequestSchema = JobActionRequestSchema;
 export const CancelJobRequestSchema = JobActionRequestSchema;
 export const RetryJobRequestSchema = JobActionRequestSchema;
@@ -53,6 +58,7 @@ export type BatchRenderRequest = z.infer<typeof BatchRenderRequestSchema>;
 export type GetJobRequest = z.infer<typeof GetJobRequestSchema>;
 export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
 export type RetryJobRequest = z.infer<typeof RetryJobRequestSchema>;
+export type DownloadResultRequest = z.infer<typeof DownloadResultRequestSchema>;
 
 export interface RendererResponse {
   ok: boolean;
