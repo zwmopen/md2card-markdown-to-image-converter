@@ -229,7 +229,7 @@ export class JobManager {
       delete job.error;
       job.status = "completed";
     } catch (error) {
-      if (controller.signal.aborted || job.status === "cancelled") {
+      if (controller.signal.aborted) {
         job.status = "cancelled";
         job.error = cancellationError();
         delete job.result;
