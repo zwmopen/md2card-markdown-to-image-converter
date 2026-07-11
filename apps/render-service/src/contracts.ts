@@ -6,6 +6,7 @@ export const ThemeModeSchema = z.enum(["light", "dark", "auto"]);
 export const SplitModeSchema = z.enum(["auto", "hr", "none"]);
 export const OutputFormatSchema = z.enum(["png", "jpeg", "webp"]);
 export const ResultPreferenceSchema = z.enum(["auto", "archive", "primary"]);
+export const JobStatusSchema = z.enum(["queued", "running", "completed", "failed", "cancelled"]);
 
 export const RenderRequestSchema = z
   .object({
@@ -39,13 +40,21 @@ export const BatchRenderRequestSchema = z
   })
   .strict();
 
+export const ListJobsRequestSchema = z
+  .object({
+    status: JobStatusSchema.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    cursor: z.string().trim().min(1).max(512).optional(),
+  })
+  .strict();
+
 export type RenderRequest = z.infer<typeof RenderRequestSchema>;
 export type BatchRenderItem = z.infer<typeof BatchRenderItemSchema>;
 export type BatchRenderRequest = z.infer<typeof BatchRenderRequestSchema>;
 export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 export type ResultPreference = z.infer<typeof ResultPreferenceSchema>;
-
-export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type JobStatus = z.infer<typeof JobStatusSchema>;
+export type ListJobsRequest = z.infer<typeof ListJobsRequestSchema>;
 
 export interface RenderedFile {
   name: string;
