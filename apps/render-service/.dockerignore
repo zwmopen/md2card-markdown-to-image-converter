@@ -1,0 +1,7 @@
+node_modules
+dist
+.md2card-output
+.env
+.env.*
+npm-debug.log*
+tests
