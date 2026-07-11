@@ -1,0 +1,163 @@
+import type { Browser, Page } from "playwright";
+import { chromium } from "playwright";
+import sharp from "sharp";
+
+import type {
+  BatchRenderRequest,
+  JobResult,
+  RenderJob,
+  RenderRequest,
+  RenderedFile,
+} from "./contracts.js";
+import type { RenderServiceConfig } from "./config.js";
+import { canLoadRemoteUrl, sanitizeFilename } from "./security.js";
+import { extensionForFormat, mediaTypeForFormat, OutputStore } from "./storage.js";
+import { buildRenderHtml } from "./template.js";
+
+function titleFromMarkdown(markdown: string, fallback: string): string {
+  const heading = markdown.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m)?.[1];
+  const firstLine = markdown.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return sanitizeFilename(heading ?? firstLine ?? fallback, fallback);
+}
+
+async function convertScreenshot(png: Buffer, format: RenderRequest["outputFormat"]): Promise<Buffer> {
+  if (format === "png") return png;
+  if (format === "jpeg") return sharp(png).jpeg({ quality: 92, mozjpeg: true }).toBuffer();
+  return sharp(png).webp({ quality: 90 }).toBuffer();
+}
+
+export class RenderEngine {
+  readonly #config: RenderServiceConfig;
+  readonly #store: OutputStore;
+  #browser: Browser | undefined;
+
+  constructor(config: RenderServiceConfig, store: OutputStore) {
+    this.#config = config;
+    this.#store = store;
+  }
+
+  async close(): Promise<void> {
+    const browser = this.#browser;
+    this.#browser = undefined;
+    if (browser) await browser.close();
+  }
+
+  async renderSingle(job: RenderJob<RenderRequest>): Promise<JobResult> {
+    const title = sanitizeFilename(
+      job.payload.title ?? titleFromMarkdown(job.payload.markdown, "md2card"),
+      "md2card",
+    );
+    const files = await this.renderDocument(job.id, job.payload, title);
+    const result: JobResult = { files, ...(files[0] ? { primaryFile: files[0] } : {}) };
+    if (files.length > 1) {
+      result.archiveFile = await this.#store.createArchive(job.id, title, files);
+      result.files = [...files, result.archiveFile];
+    }
+    return result;
+  }
+
+  async renderBatch(job: RenderJob<BatchRenderRequest>): Promise<JobResult> {
+    const files: RenderedFile[] = [];
+    for (const document of job.payload.documents) {
+      const folder = sanitizeFilename(document.id, "document");
+      const title = sanitizeFilename(
+        document.title ?? titleFromMarkdown(document.markdown, folder),
+        folder,
+      );
+      files.push(...await this.renderDocument(job.id, document, `${folder}/${title}`));
+    }
+    const archiveFile = await this.#store.createArchive(job.id, job.payload.archiveName, files);
+    return {
+      files: [...files, archiveFile],
+      ...(files[0] ? { primaryFile: files[0] } : {}),
+      archiveFile,
+    };
+  }
+
+  private async browser(): Promise<Browser> {
+    if (this.#browser?.isConnected()) return this.#browser;
+    this.#browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--no-zygote"],
+    });
+    return this.#browser;
+  }
+
+  private async configureNetwork(page: Page): Promise<void> {
+    await page.route("**/*", async (route) => {
+      const url = route.request().url();
+      if (url.startsWith("data:") || url.startsWith("about:")) {
+        await route.continue();
+        return;
+      }
+      if (this.#config.allowRemoteImages && canLoadRemoteUrl(url)) {
+        await route.continue();
+        return;
+      }
+      await route.abort("blockedbyclient");
+    });
+  }
+
+  private async renderDocument(
+    jobId: string,
+    request: RenderRequest,
+    pathPrefix: string,
+  ): Promise<RenderedFile[]> {
+    const browser = await this.browser();
+    const context = await browser.newContext({
+      viewport: {
+        width: Math.max(800, request.width + 80),
+        height: Math.max(800, request.height + 80),
+      },
+      deviceScaleFactor: 2,
+      colorScheme: request.themeMode === "dark" ? "dark" : "light",
+      serviceWorkers: "block",
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(this.#config.renderTimeoutMs);
+    await this.configureNetwork(page);
+
+    try {
+      await page.setContent(buildRenderHtml(request), {
+        waitUntil: "load",
+        timeout: this.#config.renderTimeoutMs,
+      });
+      await page.waitForFunction(
+        () => ["true", "error"].includes(document.documentElement.dataset.ready ?? ""),
+        undefined,
+        { timeout: this.#config.renderTimeoutMs },
+      );
+      const state = await page.evaluate(() => ({
+        ready: document.documentElement.dataset.ready,
+        error: document.documentElement.dataset.renderError,
+      }));
+      if (state.ready === "error") throw new Error(state.error || "Render page failed to paginate");
+
+      const cards = page.locator(".md2card-page");
+      const count = await cards.count();
+      if (count < 1) throw new Error("Renderer produced no card pages");
+
+      const extension = extensionForFormat(request.outputFormat);
+      const mediaType = mediaTypeForFormat(request.outputFormat);
+      const files: RenderedFile[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const png = await cards.nth(index).screenshot({
+          type: "png",
+          animations: "disabled",
+          caret: "hide",
+          timeout: this.#config.renderTimeoutMs,
+        });
+        const converted = await convertScreenshot(png, request.outputFormat);
+        files.push(await this.#store.write(
+          jobId,
+          `${pathPrefix}/${String(index + 1).padStart(2, "0")}.${extension}`,
+          converted,
+          mediaType,
+        ));
+      }
+      return files;
+    } finally {
+      await context.close();
+    }
+  }
+}

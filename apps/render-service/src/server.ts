@@ -1,0 +1,264 @@
+import http, { type IncomingMessage, type ServerResponse } from "node:http";
+
+import { z } from "zod";
+
+import type { RenderServiceConfig } from "./config.js";
+import {
+  BatchRenderRequestSchema,
+  RenderRequestSchema,
+  type RenderJob,
+  type RenderRequest,
+  type BatchRenderRequest,
+} from "./contracts.js";
+import { JobManager } from "./jobs.js";
+import { RenderEngine } from "./renderer.js";
+import { hasValidBearer } from "./security.js";
+import { OutputStore } from "./storage.js";
+
+class HttpError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details?: unknown;
+
+  constructor(status: number, code: string, message: string, details?: unknown) {
+    super(message);
+    this.name = "HttpError";
+    this.status = status;
+    this.code = code;
+    if (details !== undefined) this.details = details;
+  }
+}
+
+function setSecurityHeaders(response: ServerResponse): void {
+  response.setHeader("cache-control", "no-store");
+  response.setHeader("x-content-type-options", "nosniff");
+  response.setHeader("x-frame-options", "DENY");
+  response.setHeader("referrer-policy", "no-referrer");
+}
+
+function sendJson(response: ServerResponse, status: number, payload: unknown): void {
+  setSecurityHeaders(response);
+  response.statusCode = status;
+  response.setHeader("content-type", "application/json; charset=utf-8");
+  response.end(JSON.stringify(payload));
+}
+
+async function readJson(request: IncomingMessage, maximumBytes: number): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maximumBytes) throw new HttpError(413, "request_too_large", "Request body is too large");
+    chunks.push(buffer);
+  }
+  if (!chunks.length) throw new HttpError(400, "empty_body", "A JSON request body is required");
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw new HttpError(400, "invalid_json", "Request body must be valid JSON");
+  }
+}
+
+function requestUrl(request: IncomingMessage): URL {
+  const host = request.headers.host || "localhost";
+  const protocol = request.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+  return new URL(request.url || "/", `${protocol}://${host}`);
+}
+
+function baseUrl(config: RenderServiceConfig, request: IncomingMessage): string {
+  if (config.publicBaseUrl) return config.publicBaseUrl;
+  const url = requestUrl(request);
+  return `${url.protocol}//${url.host}`;
+}
+
+function fileUrl(base: string, job: RenderJob, relativePath: string): string {
+  const encodedPath = relativePath.split("/").map(encodeURIComponent).join("/");
+  return `${base}/v1/jobs/${encodeURIComponent(job.id)}/files/${encodedPath}?token=${encodeURIComponent(job.token)}`;
+}
+
+function publicJob(job: RenderJob, base: string): Record<string, unknown> {
+  const files = job.result?.files.map((file) => ({
+    name: file.name,
+    mediaType: file.mediaType,
+    size: file.size,
+    url: fileUrl(base, job, file.relativePath),
+  })) ?? [];
+  const primary = job.result?.primaryFile;
+  const archive = job.result?.archiveFile;
+  return {
+    ok: job.status !== "failed",
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    expiresAt: job.expiresAt,
+    statusUrl: `${base}/v1/jobs/${encodeURIComponent(job.id)}`,
+    resultUrl: primary ? fileUrl(base, job, primary.relativePath) : null,
+    downloadUrl: archive
+      ? fileUrl(base, job, archive.relativePath)
+      : primary
+        ? fileUrl(base, job, primary.relativePath)
+        : null,
+    files,
+    ...(job.error ? { error: job.error } : {}),
+  };
+}
+
+function requireApiAuth(request: IncomingMessage, config: RenderServiceConfig): void {
+  const authorization = Array.isArray(request.headers.authorization)
+    ? request.headers.authorization[0]
+    : request.headers.authorization;
+  if (!hasValidBearer(authorization, config.apiToken)) {
+    throw new HttpError(401, "unauthorized", "A valid Bearer token is required");
+  }
+}
+
+function sendError(response: ServerResponse, error: unknown): void {
+  if (error instanceof HttpError) {
+    sendJson(response, error.status, {
+      ok: false,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      },
+    });
+    return;
+  }
+  if (error instanceof z.ZodError) {
+    sendJson(response, 400, {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "The render request is invalid",
+        issues: error.issues,
+      },
+    });
+    return;
+  }
+  console.error(error);
+  sendJson(response, 500, {
+    ok: false,
+    error: {
+      code: "internal_error",
+      message: error instanceof Error ? error.message : "Unexpected server error",
+    },
+  });
+}
+
+export interface RenderService {
+  server: http.Server;
+  jobs: JobManager;
+  engine: RenderEngine;
+  close(): Promise<void>;
+}
+
+export async function createRenderService(config: RenderServiceConfig): Promise<RenderService> {
+  const store = new OutputStore(config.outputDir);
+  await store.init();
+  const jobs = new JobManager(config.concurrency, config.jobTtlMs);
+  const engine = new RenderEngine(config, store);
+
+  const server = http.createServer(async (request, response) => {
+    try {
+      const url = requestUrl(request);
+      const method = request.method || "GET";
+
+      if (method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
+        sendJson(response, 200, {
+          ok: true,
+          service: "md2card-render-service",
+          version: "0.1.0",
+          renderer: "playwright-chromium",
+          maxBatchSize: config.maxBatchSize,
+          remoteImagesAllowed: config.allowRemoteImages,
+          queue: jobs.stats(),
+        });
+        return;
+      }
+
+      if (method === "GET") {
+        const fileMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/files\/(.+)$/);
+        if (fileMatch) {
+          const jobId = decodeURIComponent(fileMatch[1] || "");
+          const relativePath = fileMatch[2]?.split("/").map(decodeURIComponent).join("/") || "";
+          const job = jobs.get(jobId);
+          if (!job) throw new HttpError(404, "job_not_found", "Render job was not found");
+          if (!hasValidBearer(`Bearer ${url.searchParams.get("token") || ""}`, job.token)) {
+            throw new HttpError(401, "invalid_download_token", "The download token is invalid");
+          }
+          if (!job.result?.files.some((file) => file.relativePath === relativePath)) {
+            throw new HttpError(404, "file_not_found", "Rendered file was not found");
+          }
+          const file = await store.read(jobId, relativePath);
+          setSecurityHeaders(response);
+          response.statusCode = 200;
+          response.setHeader("content-type", file.mediaType);
+          response.setHeader("content-length", String(file.data.length));
+          response.setHeader("content-disposition", `attachment; filename*=UTF-8''${encodeURIComponent(relativePath.split("/").at(-1) || "result")}`);
+          response.end(file.data);
+          return;
+        }
+      }
+
+      if (!url.pathname.startsWith("/v1/")) {
+        throw new HttpError(404, "not_found", "Unknown endpoint");
+      }
+      requireApiAuth(request, config);
+      const publicOrigin = baseUrl(config, request);
+
+      if (method === "POST" && url.pathname === "/v1/render") {
+        const payload = RenderRequestSchema.parse(await readJson(request, config.maxBodyBytes));
+        const job = jobs.enqueue<RenderRequest>("single", payload, (item) => engine.renderSingle(item));
+        sendJson(response, 202, publicJob(job, publicOrigin));
+        return;
+      }
+
+      if (method === "POST" && url.pathname === "/v1/batch") {
+        const payload = BatchRenderRequestSchema.parse(await readJson(request, config.maxBodyBytes));
+        if (payload.documents.length > config.maxBatchSize) {
+          throw new HttpError(
+            400,
+            "batch_limit_exceeded",
+            `This deployment accepts at most ${config.maxBatchSize} documents per batch`,
+          );
+        }
+        const job = jobs.enqueue<BatchRenderRequest>("batch", payload, (item) => engine.renderBatch(item));
+        sendJson(response, 202, publicJob(job, publicOrigin));
+        return;
+      }
+
+      if (method === "GET") {
+        const jobMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)$/);
+        if (jobMatch) {
+          const job = jobs.get(decodeURIComponent(jobMatch[1] || ""));
+          if (!job) throw new HttpError(404, "job_not_found", "Render job was not found");
+          sendJson(response, 200, publicJob(job, publicOrigin));
+          return;
+        }
+      }
+
+      throw new HttpError(404, "not_found", "Unknown renderer endpoint");
+    } catch (error) {
+      sendError(response, error);
+    }
+  });
+
+  server.on("clientError", (_error, socket) => {
+    socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+  });
+
+  return {
+    server,
+    jobs,
+    engine,
+    async close() {
+      jobs.close();
+      await engine.close();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve());
+      });
+    },
+  };
+}

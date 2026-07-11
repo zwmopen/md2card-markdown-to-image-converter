@@ -1,0 +1,53 @@
+name: Render Service
+
+on:
+  pull_request:
+    paths:
+      - "apps/render-service/**"
+      - ".github/workflows/render-service.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/render-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        shell: bash
+        run: set -o pipefail; npm run type-check 2>&1 | tee typecheck.log
+
+      - name: Upload type-check diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-service-typecheck
+          path: apps/render-service/typecheck.log
+          if-no-files-found: error
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production JavaScript
+        run: npm run build
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Render a real PNG and ZIP
+        run: npm run test:render
