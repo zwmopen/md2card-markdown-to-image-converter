@@ -40,7 +40,7 @@ export class JobManager {
   readonly #concurrency: number;
   readonly #ttlMs: number;
   readonly #store: JobStore;
-  readonly #onExpire?: JobExpiryHandler;
+  readonly #onExpire: JobExpiryHandler | undefined;
   readonly #cleanupTimer: NodeJS.Timeout;
   #active = 0;
 
