@@ -154,16 +154,18 @@ export class JobManager {
 
     const queuedIndex = this.#queue.findIndex((item) => item.job.id === jobId);
     const controller = this.#controllers.get(jobId);
+    if (queuedIndex >= 0) this.#queue.splice(queuedIndex, 1);
+
     job.status = "cancelled";
     job.error = cancellationError();
     job.updatedAt = nowIso();
-    await this.#store.save(job);
     controller?.abort("job cancelled");
+    if (queuedIndex >= 0) this.#controllers.delete(jobId);
 
+    await this.#store.save(job);
     if (queuedIndex >= 0) {
-      this.#queue.splice(queuedIndex, 1);
-      this.#controllers.delete(jobId);
       await this.cleanupOutput(jobId);
+      this.pump();
     }
 
     return { job, cancelled: true };
