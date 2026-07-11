@@ -56,7 +56,9 @@ test("file job store atomically saves and reloads job metadata", async () => {
 test("manager recovers interrupted jobs as explicit restart failures", async () => {
   const outputDir = await temporaryDirectory();
   const store = new FileJobStore(outputDir);
-  await store.save(persistedJob({ status: "running", result: undefined }));
+  const interrupted = persistedJob({ status: "running" });
+  delete interrupted.result;
+  await store.save(interrupted);
   const manager = new JobManager(1, 60_000, store);
   try {
     assert.equal(await manager.initialize(), 1);
