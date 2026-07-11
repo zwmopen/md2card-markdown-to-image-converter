@@ -52,7 +52,7 @@ test("Playwright renders a long Markdown document into real PNG pages", { timeou
   };
 
   try {
-    const result = await engine.renderSingle(job);
+    const result = await engine.renderSingle(job, new AbortController().signal);
     const images = result.files.filter((file) => file.mediaType === "image/png");
     assert.ok(images.length > 1, `expected multiple pages, received ${images.length}`);
     assert.ok(result.archiveFile, "multi-page render should produce a ZIP archive");
