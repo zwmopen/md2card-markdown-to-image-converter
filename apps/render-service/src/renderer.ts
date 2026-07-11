@@ -29,7 +29,7 @@ async function convertScreenshot(png: Buffer, format: RenderRequest["outputForma
 export class RenderEngine {
   readonly #config: RenderServiceConfig;
   readonly #store: OutputStore;
-  #browser?: Browser;
+  #browser: Browser | undefined;
 
   constructor(config: RenderServiceConfig, store: OutputStore) {
     this.#config = config;
