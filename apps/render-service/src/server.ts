@@ -10,6 +10,7 @@ import {
   type RenderRequest,
   type BatchRenderRequest,
 } from "./contracts.js";
+import { FileJobStore } from "./job-store.js";
 import { JobManager } from "./jobs.js";
 import { RenderEngine } from "./renderer.js";
 import { hasValidBearer } from "./security.js";
@@ -157,7 +158,14 @@ export interface RenderService {
 export async function createRenderService(config: RenderServiceConfig): Promise<RenderService> {
   const store = new OutputStore(config.outputDir);
   await store.init();
-  const jobs = new JobManager(config.concurrency, config.jobTtlMs);
+  const jobStore = new FileJobStore(config.outputDir);
+  const jobs = new JobManager(
+    config.concurrency,
+    config.jobTtlMs,
+    jobStore,
+    (jobId) => store.removeJob(jobId),
+  );
+  const recoveredJobs = await jobs.initialize();
   const engine = new RenderEngine(config, store);
 
   const server = http.createServer(async (request, response) => {
@@ -169,8 +177,10 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
         sendJson(response, 200, {
           ok: true,
           service: "md2card-render-service",
-          version: "0.1.0",
+          version: "0.2.0",
           renderer: "playwright-chromium",
+          durableJobs: true,
+          recoveredJobs,
           maxBatchSize: config.maxBatchSize,
           remoteImagesAllowed: config.allowRemoteImages,
           queue: jobs.stats(),
@@ -210,7 +220,7 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
 
       if (method === "POST" && url.pathname === "/v1/render") {
         const payload = RenderRequestSchema.parse(await readJson(request, config.maxBodyBytes));
-        const job = jobs.enqueue<RenderRequest>("single", payload, (item) => engine.renderSingle(item));
+        const job = await jobs.enqueue<RenderRequest>("single", payload, (item) => engine.renderSingle(item));
         sendJson(response, 202, publicJob(job, publicOrigin));
         return;
       }
@@ -224,7 +234,7 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
             `This deployment accepts at most ${config.maxBatchSize} documents per batch`,
           );
         }
-        const job = jobs.enqueue<BatchRenderRequest>("batch", payload, (item) => engine.renderBatch(item));
+        const job = await jobs.enqueue<BatchRenderRequest>("batch", payload, (item) => engine.renderBatch(item));
         sendJson(response, 202, publicJob(job, publicOrigin));
         return;
       }
