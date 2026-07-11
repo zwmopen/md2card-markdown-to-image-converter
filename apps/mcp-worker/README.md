@@ -1,6 +1,6 @@
 # MD2Card Cloudflare MCP Worker
 
-这是 MD2Card 的第一版远程 MCP 网关。它部署在 Cloudflare Workers，使用 Streamable HTTP 暴露 `/mcp`，并把真正的图片渲染请求转发给可替换的渲染后端。
+这是 MD2Card 的远程 MCP 网关。它部署在 Cloudflare Workers，使用 Streamable HTTP 暴露 `/mcp`，并把真实图片渲染请求转发给仓库中的 Playwright 渲染后端或其他兼容实现。
 
 ## 当前能力
 
@@ -12,21 +12,39 @@
 - `/health`：公开健康检查
 - 可选 Bearer Token 保护 `/mcp`
 
-## 为什么先做网关
+## 渲染后端
 
-现有 Web 版依赖浏览器 DOM 与截图。普通 Cloudflare Worker 不能直接复用这条链路，因此第一阶段先固定 MCP 工具、参数和渲染服务协议。下一阶段可以接入：
+普通 Cloudflare Worker 不能直接运行完整 Playwright Chromium，因此 MCP Worker 负责鉴权、参数校验和转发，真实渲染由 [`../render-service`](../render-service) 完成。
 
-1. Cloudflare Browser Rendering；
-2. 独立 Playwright 渲染服务；
-3. 未来抽离出的 MD2Card Render Core。
+渲染服务已经实现：
 
-未配置渲染后端时，参数校验工具仍可使用；真正渲染工具会明确返回 `renderer_not_configured`，不会伪造成功结果。
+```text
+POST /v1/render
+POST /v1/batch
+GET  /v1/jobs/:jobId
+```
 
-## 本地开发
+如果未配置渲染服务，参数校验工具仍可使用；真正渲染工具会明确返回 `renderer_not_configured`，不会伪造图片结果。
+
+## 本地联调
+
+先启动渲染服务：
+
+```bash
+cd apps/render-service
+npm install
+npx playwright install --with-deps chromium
+export RENDER_API_TOKEN=dev
+npm run dev
+```
+
+再启动 MCP Worker：
 
 ```bash
 cd apps/mcp-worker
 npm install
+export RENDER_API_BASE_URL=http://localhost:3000
+export RENDER_API_TOKEN=dev
 npm run dev
 ```
 
@@ -66,21 +84,12 @@ npx wrangler secret put MCP_ACCESS_TOKEN
 说明：
 
 - `RENDER_API_BASE_URL` 必须使用 HTTPS，localhost 除外。
-- `RENDER_API_TOKEN` 是 MCP Worker 调用渲染后端的服务端密钥。
+- `RENDER_API_TOKEN` 必须与渲染服务中的同名变量一致。
 - `MCP_ACCESS_TOKEN` 可选；配置后，访问 `/mcp` 必须携带 `Authorization: Bearer <token>`。
+- 渲染服务的运行、Docker 和安全边界见 [`../render-service/README.md`](../render-service/README.md)。
 - 生产版最终应升级到 OAuth，而不是长期依赖共享 Token。
 
-## 渲染后端协议
-
-MCP Worker 当前约定渲染服务提供：
-
-```text
-POST /v1/render
-POST /v1/batch
-GET  /v1/jobs/:jobId
-```
-
-单篇请求示例：
+## 单篇请求参数
 
 ```json
 {
@@ -97,17 +106,19 @@ GET  /v1/jobs/:jobId
 }
 ```
 
-渲染服务应返回 JSON，推荐结构：
+渲染服务会先返回异步任务：
 
 ```json
 {
   "ok": true,
-  "jobId": "job_123",
+  "jobId": "任务 ID",
   "status": "queued",
   "resultUrl": null,
   "downloadUrl": null
 }
 ```
+
+随后通过 `get_job` 查询，完成后可获得图片或 ZIP 下载地址。
 
 ## 校验
 
