@@ -13,7 +13,8 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<voi
 
 test("job manager transitions queued work to completed", async () => {
   const manager = new JobManager(1, 60_000);
-  const job = manager.enqueue("single", { markdown: "# Test" }, async () => ({ files: [] }));
+  await manager.initialize();
+  const job = await manager.enqueue("single", { markdown: "# Test" }, async () => ({ files: [] }));
   await waitFor(() => manager.get(job.id)?.status === "completed");
   assert.equal(manager.get(job.id)?.status, "completed");
   assert.equal(manager.get(job.id)?.error, undefined);
@@ -22,7 +23,8 @@ test("job manager transitions queued work to completed", async () => {
 
 test("job manager records render failures", async () => {
   const manager = new JobManager(1, 60_000);
-  const job = manager.enqueue("single", {}, async () => {
+  await manager.initialize();
+  const job = await manager.enqueue("single", {}, async () => {
     throw new Error("boom");
   });
   await waitFor(() => manager.get(job.id)?.status === "failed");
