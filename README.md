@@ -8,7 +8,7 @@ Markdown 转知识卡片、小红书图文卡片与批量渲染工具。
 
 第一轮已经完成可运行 Web 基线：原页面中大量仅展示、未接通的控件已经连接到真实运行时，并通过 GitHub Actions 自动测试。当前版本仍不是线上产品的最终 1:1 复刻；完整差距和实施顺序见 [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md)。
 
-Cloudflare Remote MCP 网关和真实 Playwright 渲染后端也已经建立。MCP 可以提交、查询、下载、取消和重试单篇或批量任务；渲染服务会启动 Chromium，按真实 DOM 排版生成 PNG、JPEG、WebP 和 ZIP。单节点部署已经支持任务与结果持久化、重启恢复和过期清理；横向扩展仍需数据库、共享队列和对象存储。
+Cloudflare Remote MCP 网关和真实 Playwright 渲染后端也已经建立。MCP 可以提交、列出、查询、下载、取消和重试单篇或批量任务；渲染服务会启动 Chromium，按真实 DOM 排版生成 PNG、JPEG、WebP 和 ZIP。单节点部署已经支持任务与结果持久化、重启恢复和过期清理；横向扩展仍需数据库、共享队列和对象存储。
 
 ## 已实现
 
@@ -34,6 +34,7 @@ Cloudflare Remote MCP 网关和真实 Playwright 渲染后端也已经建立。M
 - `validate_render_request`
 - `render_markdown`
 - `batch_render`
+- `list_jobs`
 - `get_job`
 - `download_result`
 - `cancel_job`
@@ -45,10 +46,12 @@ Cloudflare Remote MCP 网关和真实 Playwright 渲染后端也已经建立。M
 - `GET /health`
 - `POST /v1/render`
 - `POST /v1/batch`
+- `GET /v1/jobs`
 - `GET /v1/jobs/:jobId`
 - `GET /v1/jobs/:jobId/result`
 - `POST /v1/jobs/:jobId/cancel`
 - `POST /v1/jobs/:jobId/retry`
+- 按状态筛选和稳定游标分页，不在列表中回显 Markdown 原文
 - Chromium 真实 DOM 排版和截图
 - 自动分页、横线分页、不分页
 - PNG、JPEG、WebP
@@ -72,7 +75,7 @@ index.html
 
 ## 本地验证
 
-Web 基线需要 Node.js 20 或更高版本：
+Web 基线：
 
 ```bash
 npm run verify
@@ -86,7 +89,7 @@ npm install
 npm run check
 ```
 
-真实渲染服务需要 Node.js 22、Chromium 和 Playwright 系统依赖：
+真实渲染服务：
 
 ```bash
 cd apps/render-service
@@ -95,15 +98,17 @@ npx playwright install --with-deps chromium
 npm run check:e2e
 ```
 
-详细运行、持久化目录、结果选择、任务控制、Docker 和 API 示例见 [`apps/render-service/README.md`](apps/render-service/README.md)。
+详细运行、任务列表、持久化目录、结果选择、任务控制、Docker 和 API 示例见：
+
+- [`apps/render-service/README.md`](apps/render-service/README.md)
+- [`apps/render-service/JOBS.md`](apps/render-service/JOBS.md)
 
 ## 连接 MCP 与渲染服务
-
-渲染服务提供：
 
 ```text
 POST /v1/render
 POST /v1/batch
+GET  /v1/jobs?status=&limit=&cursor=
 GET  /v1/jobs/:jobId
 GET  /v1/jobs/:jobId/result?prefer=auto|archive|primary
 POST /v1/jobs/:jobId/cancel
@@ -117,7 +122,7 @@ RENDER_API_BASE_URL=https://你的渲染服务地址
 RENDER_API_TOKEN=两端一致的服务端令牌
 ```
 
-MCP Worker 会把 `render_markdown`、`batch_render`、`get_job`、`download_result`、`cancel_job` 和 `retry_job` 转发到真实渲染服务。
+MCP Worker 会把 `render_markdown`、`batch_render`、`list_jobs`、`get_job`、`download_result`、`cancel_job` 和 `retry_job` 转发到真实渲染服务。
 
 ## 产品路线
 
@@ -156,7 +161,7 @@ src/core.js                分页、命名、文件排序等纯逻辑
 src/presets.js             视觉预设
 src/styles.js              运行时补充样式
 src/app.js                 编辑器、预览、导入和导出控制器
-apps/mcp-worker/           Cloudflare Remote MCP 网关和任务控制工具
+apps/mcp-worker/           Cloudflare Remote MCP 网关和任务管理工具
 apps/render-service/       Playwright Chromium 渲染、持久任务和结果服务
 tests/                     Web 基线回归测试
 docs/                      产品研究与复刻矩阵
