@@ -8,6 +8,7 @@
 - `POST /v1/render`
 - `POST /v1/batch`
 - `GET /v1/jobs/:jobId`
+- `GET /v1/jobs/:jobId/result`
 - `POST /v1/jobs/:jobId/cancel`
 - `POST /v1/jobs/:jobId/retry`
 - 带随机下载令牌的结果文件地址
@@ -15,6 +16,7 @@
 - 自动分页、横线分页、不分页
 - 单篇多页 ZIP
 - 多文档批量 ZIP
+- 规范化结果选择：`auto`、`archive`、`primary`
 - 有界任务队列
 - 排队与运行任务取消
 - 失败与已取消任务重试
@@ -45,7 +47,7 @@ npm run dev
 curl http://localhost:3000/health
 ```
 
-健康响应中的 `durableJobs` 表示本地持久化已启用，`recoveredJobs` 表示本次启动恢复的任务数量，`jobControl` 列出当前支持的任务操作。
+健康响应中的 `durableJobs` 表示本地持久化已启用，`recoveredJobs` 表示本次启动恢复的任务数量，`jobControl` 和 `resultPreferences` 列出任务控制及结果选择能力。
 
 ## 提交单篇渲染
 
@@ -79,13 +81,49 @@ curl http://localhost:3000/v1/jobs/<jobId> \
   -H "authorization: Bearer $RENDER_API_TOKEN"
 ```
 
-任务完成后响应包含：
+任务完成后响应包含第一张图片、ZIP（如有）和全部文件清单。文件 URL 自带随机下载令牌，不需要再次附加 API Bearer Token。
 
-- `resultUrl`：第一张图片
-- `downloadUrl`：多页或批量任务的 ZIP；单页任务则为图片
-- `files`：所有结果文件
+## 获取规范化下载结果
 
-结果 URL 自带随机下载令牌，不需要再次附加 API Bearer Token。
+任务完成后，可以让服务直接选择最合适的下载结果：
+
+```bash
+curl "http://localhost:3000/v1/jobs/<jobId>/result?prefer=auto" \
+  -H "authorization: Bearer $RENDER_API_TOKEN"
+```
+
+`prefer` 支持：
+
+- `auto`：优先 ZIP；没有 ZIP 时返回主图片。
+- `archive`：必须返回 ZIP；任务没有 ZIP 时返回 `result_unavailable`。
+- `primary`：必须返回主图片。
+
+成功响应包含：
+
+```json
+{
+  "ok": true,
+  "jobId": "任务 ID",
+  "status": "completed",
+  "preference": "auto",
+  "selected": {
+    "name": "cards.zip",
+    "mediaType": "application/zip",
+    "size": 12345,
+    "url": "带下载令牌的 URL"
+  },
+  "primary": {},
+  "archive": {},
+  "files": []
+}
+```
+
+稳定错误码：
+
+- `result_not_ready`：任务仍在排队或运行。
+- `result_failed`：任务失败。
+- `result_cancelled`：任务已取消。
+- `result_unavailable`：明确要求的结果类型不存在。
 
 ## 批量渲染
 
@@ -124,16 +162,7 @@ curl -X POST http://localhost:3000/v1/jobs/<jobId>/retry \
   -H "authorization: Bearer $RENDER_API_TOKEN"
 ```
 
-服务会复用原始、已经校验过的请求参数，创建一个全新的任务 ID。新任务响应包含：
-
-```json
-{
-  "status": "queued",
-  "retryOf": "原任务 ID"
-}
-```
-
-原任务不会被覆盖，可以继续查询用于审计。对 `queued`、`running` 或 `completed` 任务重试会返回 HTTP `409` 和 `job_not_retryable`。
+服务会复用原始、已经校验过的请求参数，创建一个全新的任务 ID。新任务响应包含 `retryOf`，原任务不会被覆盖。
 
 ## 持久化目录
 
@@ -147,7 +176,7 @@ OUTPUT_DIR/
 
 任务记录包含原始请求，包括 Markdown 内容。部署时必须把 `OUTPUT_DIR` 放在受保护的持久卷中，不应作为公共静态目录暴露。
 
-服务启动时会恢复尚未过期的完成、失败和已取消任务。上次进程结束时处于 `queued` 或 `running` 的任务会转换为失败状态，错误码为 `renderer_restarted`，不会伪装成继续执行。
+服务启动时会恢复尚未过期的完成、失败和已取消任务。上次进程结束时处于 `queued` 或 `running` 的任务会转换为失败状态，错误码为 `renderer_restarted`。
 
 ## 配置
 
@@ -180,20 +209,13 @@ docker run --rm --init --ipc=host \
 
 ## 校验
 
-单元检查：
-
 ```bash
 npm run check
-```
-
-真实浏览器出图检查：
-
-```bash
 npx playwright install --with-deps chromium
 npm run test:render
 ```
 
-GitHub Actions 会执行严格类型检查、持久化/恢复、取消/重试状态机测试和真实 Chromium 出图测试。只有多页 PNG、像素尺寸和 ZIP 均正确才会通过。
+GitHub Actions 会执行严格类型检查、结果选择、持久化/恢复、取消/重试状态机测试和真实 Chromium 出图测试。
 
 ## 已知边界
 
