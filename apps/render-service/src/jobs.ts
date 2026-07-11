@@ -147,6 +147,10 @@ export class JobManager {
     return this.#jobs.get(jobId);
   }
 
+  values(): Iterable<RenderJob> {
+    return this.#jobs.values();
+  }
+
   async cancel(jobId: string): Promise<CancelResult> {
     const job = this.#jobs.get(jobId);
     if (!job) return { job: undefined, cancelled: false };
