@@ -4,13 +4,15 @@ Markdown 转知识卡片、小红书图文卡片与批量渲染工具。
 
 ## 当前状态
 
-项目已于 2026-07 重新启动，当前处于 **“先复刻、再进化”** 的第一阶段。
+项目已于 2026-07 重新启动，当前按照 **“先复刻、再进化”** 的路线持续开发。
 
-第一轮已经完成可运行功能基线：原页面中大量仅展示、未接通的控件已经连接到真实运行时，并通过 GitHub Actions 自动测试。当前版本不是最终的线上产品 1:1 复刻；完整差距和实施顺序见 [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md)。
+第一轮已经完成可运行 Web 基线：原页面中大量仅展示、未接通的控件已经连接到真实运行时，并通过 GitHub Actions 自动测试。当前版本仍不是线上产品的最终 1:1 复刻；完整差距和实施顺序见 [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md)。
 
-Cloudflare Remote MCP 第一版工程底盘也已经建立：MCP 网关、严格参数契约、渲染后端适配协议、健康检查、可选访问令牌和独立 CI 均已落地。当前阶段只固定可靠接口，不伪造图片结果；真正的渲染后端将在后续里程碑接入。
+Cloudflare Remote MCP 网关和真实 Playwright 渲染后端也已经建立。MCP 可以通过约定接口提交单篇或批量任务，渲染服务会启动 Chromium，按真实 DOM 排版生成 PNG、JPEG、WebP 和 ZIP，并返回任务状态与下载地址。生产部署仍需配置服务地址、访问令牌和持久化存储。
 
 ## 已实现
+
+### Web 编辑器
 
 - Markdown 实时预览
 - 标题、段落、列表、引用、代码等基础语法
@@ -24,12 +26,33 @@ Cloudflare Remote MCP 第一版工程底盘也已经建立：MCP 网关、严格
 - 全部卡片 ZIP 批量导出
 - 自动命名和按文档分目录
 - 直接打开本地 `index.html` 的经典脚本兼容方式
-- Node 回归测试和 GitHub Actions CI
-- Cloudflare Remote MCP 网关基础
-- `get_capabilities`、`validate_render_request`、`render_markdown`、`batch_render`、`get_job` 工具契约
-- 可插拔渲染服务协议和 MCP Worker 独立构建校验
 
-## 直接使用
+### Remote MCP
+
+- Cloudflare Streamable HTTP MCP 网关
+- `get_capabilities`
+- `validate_render_request`
+- `render_markdown`
+- `batch_render`
+- `get_job`
+- 严格参数契约、健康检查和可选 Bearer Token
+
+### Playwright Render Service
+
+- `GET /health`
+- `POST /v1/render`
+- `POST /v1/batch`
+- `GET /v1/jobs/:jobId`
+- Chromium 真实 DOM 排版和截图
+- 自动分页、横线分页、不分页
+- PNG、JPEG、WebP
+- 单篇多页 ZIP 和多文档批量 ZIP
+- 有界任务队列、并发、超时和任务有效期
+- 下载令牌、路径穿越防护和默认远程资源阻断
+- Docker 镜像
+- 真实 Chromium 出图回归测试
+
+## Web 版直接使用
 
 下载或克隆仓库后，直接用浏览器打开：
 
@@ -41,31 +64,49 @@ index.html
 
 ## 本地验证
 
-需要 Node.js 20 或更高版本：
+Web 基线需要 Node.js 20 或更高版本：
 
 ```bash
 npm run verify
 ```
 
-验证内容包括：
-
-- JavaScript 语法
-- Markdown 分页
-- 代码块完整性
-- 文件名清理和标题提取
-- 批量文件自然排序
-- 页面关键控件
-- PNG/ZIP 导出实现
-- 本地文件启动兼容性
-- 隐藏分页批量导出防白图逻辑
-
-MCP Worker 的独立校验：
+MCP Worker：
 
 ```bash
 cd apps/mcp-worker
 npm install
 npm run check
 ```
+
+真实渲染服务需要 Node.js 22、Chromium 和 Playwright 系统依赖：
+
+```bash
+cd apps/render-service
+npm install
+npx playwright install --with-deps chromium
+npm run check:e2e
+```
+
+详细运行、Docker 和 API 示例见 [`apps/render-service/README.md`](apps/render-service/README.md)。
+
+## 连接 MCP 与渲染服务
+
+渲染服务提供：
+
+```text
+POST /v1/render
+POST /v1/batch
+GET  /v1/jobs/:jobId
+```
+
+部署渲染服务后，在 MCP Worker 中配置：
+
+```text
+RENDER_API_BASE_URL=https://你的渲染服务地址
+RENDER_API_TOKEN=两端一致的服务端令牌
+```
+
+MCP Worker 会把 `render_markdown`、`batch_render` 和 `get_job` 转发到真实渲染服务。
 
 ## 产品路线
 
@@ -79,22 +120,22 @@ npm run check
 - API 与微信公众号转换能力
 - 浏览器端功能测试与视觉回归
 
-### Phase 2：自有批量产品
+### Phase 2：生产级批量产品
 
-- 文件夹和多文档任务队列
-- 并发、重试、失败明细和结果归档
+- D1/数据库任务持久化
+- R2/对象存储结果归档
+- 队列、重试、失败明细和取消任务
 - 多尺寸、多平台批量导出
 - 品牌模板和主题 SDK
 - Web、CLI、API 共用同一渲染内核
 
-### Phase 3：自有 MCP
+### Phase 3：生产级 MCP
 
-已完成第一版远程 MCP 网关底盘，后续继续实现真实渲染、任务持久化、下载归档和 OAuth。
-
-- `render_markdown`
-- `batch_render`
-- `get_job`
+- OAuth
+- 用户级额度与调用日志
 - `download_result`
+- `cancel_job`
+- `retry_job`
 - 本地、Docker 和远程 HTTP 多种部署方式
 
 ## 技术结构
@@ -107,8 +148,9 @@ src/core.js                分页、命名、文件排序等纯逻辑
 src/presets.js             视觉预设
 src/styles.js              运行时补充样式
 src/app.js                 编辑器、预览、导入和导出控制器
-apps/mcp-worker/           Cloudflare Remote MCP 网关与渲染服务适配层
-tests/                     回归测试
+apps/mcp-worker/           Cloudflare Remote MCP 网关
+apps/render-service/       Playwright Chromium 真实渲染后端
+tests/                     Web 基线回归测试
 docs/                      产品研究与复刻矩阵
 ```
 
