@@ -1,8 +1,10 @@
 import type {
   BatchRenderRequest,
+  CancelJobRequest,
   GetJobRequest,
   RenderRequest,
   RendererResponse,
+  RetryJobRequest,
 } from "./contracts";
 import type { Env } from "./env";
 import { parsePositiveInteger } from "./env";
@@ -121,5 +123,23 @@ export function batchRender(
 export function getRenderJob(env: Env, input: GetJobRequest): Promise<RendererResponse> {
   return requestRenderer(env, `/v1/jobs/${encodeURIComponent(input.jobId)}`, {
     method: "GET",
+  });
+}
+
+export function cancelRenderJob(
+  env: Env,
+  input: CancelJobRequest,
+): Promise<RendererResponse> {
+  return requestRenderer(env, `/v1/jobs/${encodeURIComponent(input.jobId)}/cancel`, {
+    method: "POST",
+  });
+}
+
+export function retryRenderJob(
+  env: Env,
+  input: RetryJobRequest,
+): Promise<RendererResponse> {
+  return requestRenderer(env, `/v1/jobs/${encodeURIComponent(input.jobId)}/retry`, {
+    method: "POST",
   });
 }
