@@ -1,4 +1,4 @@
-import type { Browser, Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 import { chromium } from "playwright";
 import sharp from "sharp";
 
@@ -26,6 +26,10 @@ async function convertScreenshot(png: Buffer, format: RenderRequest["outputForma
   return sharp(png).webp({ quality: 90 }).toBuffer();
 }
 
+async function closeContext(context: BrowserContext): Promise<void> {
+  await context.close().catch(() => undefined);
+}
+
 export class RenderEngine {
   readonly #config: RenderServiceConfig;
   readonly #store: OutputStore;
@@ -42,31 +46,48 @@ export class RenderEngine {
     if (browser) await browser.close();
   }
 
-  async renderSingle(job: RenderJob<RenderRequest>): Promise<JobResult> {
+  async renderSingle(
+    job: RenderJob<RenderRequest>,
+    signal: AbortSignal,
+  ): Promise<JobResult> {
+    signal.throwIfAborted();
     const title = sanitizeFilename(
       job.payload.title ?? titleFromMarkdown(job.payload.markdown, "md2card"),
       "md2card",
     );
-    const files = await this.renderDocument(job.id, job.payload, title);
+    const files = await this.renderDocument(job.id, job.payload, title, signal);
+    signal.throwIfAborted();
     const result: JobResult = { files, ...(files[0] ? { primaryFile: files[0] } : {}) };
     if (files.length > 1) {
       result.archiveFile = await this.#store.createArchive(job.id, title, files);
+      signal.throwIfAborted();
       result.files = [...files, result.archiveFile];
     }
     return result;
   }
 
-  async renderBatch(job: RenderJob<BatchRenderRequest>): Promise<JobResult> {
+  async renderBatch(
+    job: RenderJob<BatchRenderRequest>,
+    signal: AbortSignal,
+  ): Promise<JobResult> {
     const files: RenderedFile[] = [];
     for (const document of job.payload.documents) {
+      signal.throwIfAborted();
       const folder = sanitizeFilename(document.id, "document");
       const title = sanitizeFilename(
         document.title ?? titleFromMarkdown(document.markdown, folder),
         folder,
       );
-      files.push(...await this.renderDocument(job.id, document, `${folder}/${title}`));
+      files.push(...await this.renderDocument(
+        job.id,
+        document,
+        `${folder}/${title}`,
+        signal,
+      ));
     }
+    signal.throwIfAborted();
     const archiveFile = await this.#store.createArchive(job.id, job.payload.archiveName, files);
+    signal.throwIfAborted();
     return {
       files: [...files, archiveFile],
       ...(files[0] ? { primaryFile: files[0] } : {}),
@@ -102,8 +123,11 @@ export class RenderEngine {
     jobId: string,
     request: RenderRequest,
     pathPrefix: string,
+    signal: AbortSignal,
   ): Promise<RenderedFile[]> {
+    signal.throwIfAborted();
     const browser = await this.browser();
+    signal.throwIfAborted();
     const context = await browser.newContext({
       viewport: {
         width: Math.max(800, request.width + 80),
@@ -113,20 +137,28 @@ export class RenderEngine {
       colorScheme: request.themeMode === "dark" ? "dark" : "light",
       serviceWorkers: "block",
     });
-    const page = await context.newPage();
-    page.setDefaultTimeout(this.#config.renderTimeoutMs);
-    await this.configureNetwork(page);
+    const abortContext = () => {
+      void closeContext(context);
+    };
+    signal.addEventListener("abort", abortContext, { once: true });
 
     try {
+      signal.throwIfAborted();
+      const page = await context.newPage();
+      page.setDefaultTimeout(this.#config.renderTimeoutMs);
+      await this.configureNetwork(page);
+
       await page.setContent(buildRenderHtml(request), {
         waitUntil: "load",
         timeout: this.#config.renderTimeoutMs,
       });
+      signal.throwIfAborted();
       await page.waitForFunction(
         () => ["true", "error"].includes(document.documentElement.dataset.ready ?? ""),
         undefined,
         { timeout: this.#config.renderTimeoutMs },
       );
+      signal.throwIfAborted();
       const state = await page.evaluate(() => ({
         ready: document.documentElement.dataset.ready,
         error: document.documentElement.dataset.renderError,
@@ -141,13 +173,16 @@ export class RenderEngine {
       const mediaType = mediaTypeForFormat(request.outputFormat);
       const files: RenderedFile[] = [];
       for (let index = 0; index < count; index += 1) {
+        signal.throwIfAborted();
         const png = await cards.nth(index).screenshot({
           type: "png",
           animations: "disabled",
           caret: "hide",
           timeout: this.#config.renderTimeoutMs,
         });
+        signal.throwIfAborted();
         const converted = await convertScreenshot(png, request.outputFormat);
+        signal.throwIfAborted();
         files.push(await this.#store.write(
           jobId,
           `${pathPrefix}/${String(index + 1).padStart(2, "0")}.${extension}`,
@@ -157,7 +192,8 @@ export class RenderEngine {
       }
       return files;
     } finally {
-      await context.close();
+      signal.removeEventListener("abort", abortContext);
+      await closeContext(context);
     }
   }
 }

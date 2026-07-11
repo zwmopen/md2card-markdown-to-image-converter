@@ -8,12 +8,16 @@
 - `POST /v1/render`
 - `POST /v1/batch`
 - `GET /v1/jobs/:jobId`
+- `POST /v1/jobs/:jobId/cancel`
+- `POST /v1/jobs/:jobId/retry`
 - 带随机下载令牌的结果文件地址
 - PNG、JPEG、WebP
 - 自动分页、横线分页、不分页
 - 单篇多页 ZIP
 - 多文档批量 ZIP
 - 有界任务队列
+- 排队与运行任务取消
+- 失败与已取消任务重试
 - 任务元数据原子落盘和重启恢复
 - 运行中任务在重启后明确标记为 `renderer_restarted`
 - 过期任务自动删除元数据和结果目录
@@ -41,7 +45,7 @@ npm run dev
 curl http://localhost:3000/health
 ```
 
-健康响应中的 `durableJobs` 表示本地持久化已启用，`recoveredJobs` 表示本次启动恢复的任务数量。
+健康响应中的 `durableJobs` 表示本地持久化已启用，`recoveredJobs` 表示本次启动恢复的任务数量，`jobControl` 列出当前支持的任务操作。
 
 ## 提交单篇渲染
 
@@ -98,6 +102,39 @@ curl -X POST http://localhost:3000/v1/batch \
   }'
 ```
 
+## 取消任务
+
+只有 `queued` 和 `running` 状态可以取消：
+
+```bash
+curl -X POST http://localhost:3000/v1/jobs/<jobId>/cancel \
+  -H "authorization: Bearer $RENDER_API_TOKEN"
+```
+
+排队任务会从队列中移除；运行任务会触发 `AbortSignal` 并关闭对应 Chromium 上下文。任务最终状态为 `cancelled`，错误码为 `job_cancelled`，已经产生的部分文件会被清理。
+
+对 `completed`、`failed` 或已经 `cancelled` 的任务再次取消会返回 HTTP `409` 和 `job_not_cancellable`。
+
+## 重试任务
+
+只有 `failed` 或 `cancelled` 状态可以重试：
+
+```bash
+curl -X POST http://localhost:3000/v1/jobs/<jobId>/retry \
+  -H "authorization: Bearer $RENDER_API_TOKEN"
+```
+
+服务会复用原始、已经校验过的请求参数，创建一个全新的任务 ID。新任务响应包含：
+
+```json
+{
+  "status": "queued",
+  "retryOf": "原任务 ID"
+}
+```
+
+原任务不会被覆盖，可以继续查询用于审计。对 `queued`、`running` 或 `completed` 任务重试会返回 HTTP `409` 和 `job_not_retryable`。
+
 ## 持久化目录
 
 `OUTPUT_DIR` 同时保存结果文件和任务元数据：
@@ -110,7 +147,7 @@ OUTPUT_DIR/
 
 任务记录包含原始请求，包括 Markdown 内容。部署时必须把 `OUTPUT_DIR` 放在受保护的持久卷中，不应作为公共静态目录暴露。
 
-服务启动时会恢复尚未过期的完成/失败任务。上次进程结束时处于 `queued` 或 `running` 的任务会转换为失败状态，错误码为 `renderer_restarted`，不会伪装成继续执行。
+服务启动时会恢复尚未过期的完成、失败和已取消任务。上次进程结束时处于 `queued` 或 `running` 的任务会转换为失败状态，错误码为 `renderer_restarted`，不会伪装成继续执行。
 
 ## 配置
 
@@ -139,7 +176,7 @@ docker run --rm --init --ipc=host \
   md2card-renderer
 ```
 
-持久卷 `md2card-data` 现在是恢复任务和下载结果所必需的。镜像固定使用与项目依赖一致的 Playwright `1.61.0` Chromium 环境。
+持久卷 `md2card-data` 是恢复任务和下载结果所必需的。镜像固定使用与项目依赖一致的 Playwright `1.61.0` Chromium 环境。
 
 ## 校验
 
@@ -156,7 +193,7 @@ npx playwright install --with-deps chromium
 npm run test:render
 ```
 
-GitHub Actions 会执行严格类型检查、持久化/恢复测试和真实 Chromium 出图测试。只有多页 PNG、像素尺寸和 ZIP 均正确才会通过。
+GitHub Actions 会执行严格类型检查、持久化/恢复、取消/重试状态机测试和真实 Chromium 出图测试。只有多页 PNG、像素尺寸和 ZIP 均正确才会通过。
 
 ## 已知边界
 

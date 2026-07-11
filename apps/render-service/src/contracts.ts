@@ -43,7 +43,7 @@ export type BatchRenderItem = z.infer<typeof BatchRenderItemSchema>;
 export type BatchRenderRequest = z.infer<typeof BatchRenderRequestSchema>;
 export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 
-export type JobStatus = "queued" | "running" | "completed" | "failed";
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface RenderedFile {
   name: string;
@@ -73,6 +73,7 @@ export interface RenderJob<TPayload = unknown> {
   createdAt: string;
   updatedAt: string;
   expiresAt: string;
+  retryOf?: string;
   result?: JobResult;
   error?: JobError;
 }
