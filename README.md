@@ -8,6 +8,8 @@ Markdown 转知识卡片、小红书图文卡片与批量渲染工具。
 
 第一轮已经完成可运行功能基线：原页面中大量仅展示、未接通的控件已经连接到真实运行时，并通过 GitHub Actions 自动测试。当前版本不是最终的线上产品 1:1 复刻；完整差距和实施顺序见 [`docs/PARITY_MATRIX.md`](docs/PARITY_MATRIX.md)。
 
+Cloudflare Remote MCP 第一版工程底盘也已经建立：MCP 网关、严格参数契约、渲染后端适配协议、健康检查、可选访问令牌和独立 CI 均已落地。当前阶段只固定可靠接口，不伪造图片结果；真正的渲染后端将在后续里程碑接入。
+
 ## 已实现
 
 - Markdown 实时预览
@@ -23,6 +25,9 @@ Markdown 转知识卡片、小红书图文卡片与批量渲染工具。
 - 自动命名和按文档分目录
 - 直接打开本地 `index.html` 的经典脚本兼容方式
 - Node 回归测试和 GitHub Actions CI
+- Cloudflare Remote MCP 网关基础
+- `get_capabilities`、`validate_render_request`、`render_markdown`、`batch_render`、`get_job` 工具契约
+- 可插拔渲染服务协议和 MCP Worker 独立构建校验
 
 ## 直接使用
 
@@ -54,6 +59,14 @@ npm run verify
 - 本地文件启动兼容性
 - 隐藏分页批量导出防白图逻辑
 
+MCP Worker 的独立校验：
+
+```bash
+cd apps/mcp-worker
+npm install
+npm run check
+```
+
 ## 产品路线
 
 ### Phase 1：当前产品等价复刻
@@ -76,6 +89,8 @@ npm run verify
 
 ### Phase 3：自有 MCP
 
+已完成第一版远程 MCP 网关底盘，后续继续实现真实渲染、任务持久化、下载归档和 OAuth。
+
 - `render_markdown`
 - `batch_render`
 - `get_job`
@@ -85,15 +100,16 @@ npm run verify
 ## 技术结构
 
 ```text
-index.html          页面和现有信息架构
-style.css           主界面样式
-script.js           兼容本地文件打开的脚本加载器
-src/core.js         分页、命名、文件排序等纯逻辑
-src/presets.js      视觉预设
-src/styles.js       运行时补充样式
-src/app.js          编辑器、预览、导入和导出控制器
-tests/              回归测试
-docs/               产品研究与复刻矩阵
+index.html                 页面和现有信息架构
+style.css                  主界面样式
+script.js                  兼容本地文件打开的脚本加载器
+src/core.js                分页、命名、文件排序等纯逻辑
+src/presets.js             视觉预设
+src/styles.js              运行时补充样式
+src/app.js                 编辑器、预览、导入和导出控制器
+apps/mcp-worker/           Cloudflare Remote MCP 网关与渲染服务适配层
+tests/                     回归测试
+docs/                      产品研究与复刻矩阵
 ```
 
 ## 原则

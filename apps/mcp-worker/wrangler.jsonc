@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "md2card-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "MAX_BATCH_SIZE": "20",
+    "RENDER_TIMEOUT_MS": "30000"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
