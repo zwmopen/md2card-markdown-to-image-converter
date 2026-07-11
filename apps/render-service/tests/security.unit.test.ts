@@ -10,9 +10,9 @@ import {
 } from "../src/security.js";
 
 test("bearer validation accepts only an exact token", () => {
-  assert.equal(hasValidBearer("Bearer secret", "secret"), true);
-  assert.equal(hasValidBearer("Bearer secrets", "secret"), false);
-  assert.equal(hasValidBearer(undefined, "secret"), false);
+  assert.equal(hasValidBearer("Bearer abc", "abc"), true);
+  assert.equal(hasValidBearer("Bearer abcd", "abc"), false);
+  assert.equal(hasValidBearer(undefined, "abc"), false);
   assert.equal(hasValidBearer(undefined, undefined), true);
 });
 
