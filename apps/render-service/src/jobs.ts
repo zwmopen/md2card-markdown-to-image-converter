@@ -4,12 +4,25 @@ import type { JobError, JobResult, RenderJob } from "./contracts.js";
 import type { JobStore } from "./job-store.js";
 import { createDownloadToken } from "./security.js";
 
-export type JobWork<TPayload> = (job: RenderJob<TPayload>) => Promise<JobResult>;
-export type JobExpiryHandler = (jobId: string) => Promise<void>;
+export type JobWork<TPayload> = (
+  job: RenderJob<TPayload>,
+  signal: AbortSignal,
+) => Promise<JobResult>;
+export type JobOutputCleanup = (jobId: string) => Promise<void>;
+
+export interface EnqueueOptions {
+  retryOf?: string;
+}
+
+export interface CancelResult {
+  job: RenderJob | undefined;
+  cancelled: boolean;
+}
 
 interface QueueItem<TPayload = unknown> {
   job: RenderJob<TPayload>;
   work: JobWork<TPayload>;
+  controller: AbortController;
 }
 
 const NOOP_STORE: JobStore = {
@@ -34,13 +47,25 @@ function normalizeError(error: unknown): JobError {
   return { code: "render_failed", message: "Unexpected render failure", details: error };
 }
 
+function cancellationError(): JobError {
+  return {
+    code: "job_cancelled",
+    message: "The render job was cancelled",
+  };
+}
+
+function isTerminal(job: RenderJob): boolean {
+  return ["completed", "failed", "cancelled"].includes(job.status);
+}
+
 export class JobManager {
   readonly #jobs = new Map<string, RenderJob>();
   readonly #queue: QueueItem[] = [];
+  readonly #controllers = new Map<string, AbortController>();
   readonly #concurrency: number;
   readonly #ttlMs: number;
   readonly #store: JobStore;
-  readonly #onExpire: JobExpiryHandler | undefined;
+  readonly #onOutputCleanup: JobOutputCleanup | undefined;
   readonly #cleanupTimer: NodeJS.Timeout;
   #active = 0;
 
@@ -48,12 +73,12 @@ export class JobManager {
     concurrency: number,
     ttlMs: number,
     store: JobStore = NOOP_STORE,
-    onExpire?: JobExpiryHandler,
+    onOutputCleanup?: JobOutputCleanup,
   ) {
     this.#concurrency = Math.max(1, concurrency);
     this.#ttlMs = Math.max(60_000, ttlMs);
     this.#store = store;
-    this.#onExpire = onExpire;
+    this.#onOutputCleanup = onOutputCleanup;
     this.#cleanupTimer = setInterval(() => {
       void this.cleanupExpired().catch((error) => {
         console.error("Failed to clean expired render jobs", error);
@@ -95,6 +120,7 @@ export class JobManager {
     kind: "single" | "batch",
     payload: TPayload,
     work: JobWork<TPayload>,
+    options: EnqueueOptions = {},
   ): Promise<RenderJob<TPayload>> {
     const createdAt = nowIso();
     const job: RenderJob<TPayload> = {
@@ -106,10 +132,13 @@ export class JobManager {
       createdAt,
       updatedAt: createdAt,
       expiresAt: new Date(Date.now() + this.#ttlMs).toISOString(),
+      ...(options.retryOf ? { retryOf: options.retryOf } : {}),
     };
+    const controller = new AbortController();
     await this.#store.save(job as RenderJob);
     this.#jobs.set(job.id, job as RenderJob);
-    this.#queue.push({ job, work } as QueueItem);
+    this.#controllers.set(job.id, controller);
+    this.#queue.push({ job, work, controller } as QueueItem);
     this.pump();
     return job;
   }
@@ -118,12 +147,39 @@ export class JobManager {
     return this.#jobs.get(jobId);
   }
 
+  async cancel(jobId: string): Promise<CancelResult> {
+    const job = this.#jobs.get(jobId);
+    if (!job) return { job: undefined, cancelled: false };
+    if (isTerminal(job)) return { job, cancelled: false };
+
+    const queuedIndex = this.#queue.findIndex((item) => item.job.id === jobId);
+    const controller = this.#controllers.get(jobId);
+    if (queuedIndex >= 0) this.#queue.splice(queuedIndex, 1);
+
+    job.status = "cancelled";
+    job.error = cancellationError();
+    job.updatedAt = nowIso();
+    controller?.abort("job cancelled");
+    if (queuedIndex >= 0) this.#controllers.delete(jobId);
+
+    await this.#store.save(job);
+    if (queuedIndex >= 0) {
+      await this.cleanupOutput(jobId);
+      this.pump();
+    }
+
+    return { job, cancelled: true };
+  }
+
   stats(): { queued: number; active: number; total: number } {
     return { queued: this.#queue.length, active: this.#active, total: this.#jobs.size };
   }
 
   close(): void {
     clearInterval(this.#cleanupTimer);
+    for (const controller of this.#controllers.values()) {
+      controller.abort("renderer shutting down");
+    }
   }
 
   async cleanupExpired(): Promise<number> {
@@ -141,36 +197,55 @@ export class JobManager {
 
   private async removePersistedJob(jobId: string): Promise<void> {
     await this.#store.remove(jobId);
-    if (this.#onExpire) await this.#onExpire(jobId);
+    await this.cleanupOutput(jobId);
+  }
+
+  private async cleanupOutput(jobId: string): Promise<void> {
+    if (this.#onOutputCleanup) await this.#onOutputCleanup(jobId);
   }
 
   private pump(): void {
     while (this.#active < this.#concurrency) {
       const item = this.#queue.shift();
       if (!item) return;
+      if (item.job.status === "cancelled" || item.controller.signal.aborted) {
+        this.#controllers.delete(item.job.id);
+        continue;
+      }
       this.#active += 1;
       void this.execute(item);
     }
   }
 
   private async execute(item: QueueItem): Promise<void> {
-    const { job, work } = item;
+    const { job, work, controller } = item;
     job.status = "running";
     job.updatedAt = nowIso();
     try {
       await this.#store.save(job);
-      job.result = await work(job);
+      const result = await work(job, controller.signal);
+      controller.signal.throwIfAborted();
+      job.result = result;
+      delete job.error;
       job.status = "completed";
     } catch (error) {
-      job.error = normalizeError(error);
-      job.status = "failed";
+      if (controller.signal.aborted) {
+        job.status = "cancelled";
+        job.error = cancellationError();
+        delete job.result;
+      } else {
+        job.error = normalizeError(error);
+        job.status = "failed";
+      }
     } finally {
       job.updatedAt = nowIso();
       try {
         await this.#store.save(job);
+        if (job.status === "cancelled") await this.cleanupOutput(job.id);
       } catch (error) {
         console.error("Failed to persist render job state", error);
       }
+      this.#controllers.delete(job.id);
       this.#active -= 1;
       this.pump();
     }
