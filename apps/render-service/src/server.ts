@@ -88,12 +88,13 @@ function publicJob(job: RenderJob, base: string): Record<string, unknown> {
   const primary = job.result?.primaryFile;
   const archive = job.result?.archiveFile;
   return {
-    ok: job.status !== "failed",
+    ok: !["failed", "cancelled"].includes(job.status),
     jobId: job.id,
     status: job.status,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     expiresAt: job.expiresAt,
+    ...(job.retryOf ? { retryOf: job.retryOf } : {}),
     statusUrl: `${base}/v1/jobs/${encodeURIComponent(job.id)}`,
     resultUrl: primary ? fileUrl(base, job, primary.relativePath) : null,
     downloadUrl: archive
@@ -177,9 +178,10 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
         sendJson(response, 200, {
           ok: true,
           service: "md2card-render-service",
-          version: "0.2.0",
+          version: "0.3.0",
           renderer: "playwright-chromium",
           durableJobs: true,
+          jobControl: ["cancel", "retry"],
           recoveredJobs,
           maxBatchSize: config.maxBatchSize,
           remoteImagesAllowed: config.allowRemoteImages,
@@ -220,7 +222,11 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
 
       if (method === "POST" && url.pathname === "/v1/render") {
         const payload = RenderRequestSchema.parse(await readJson(request, config.maxBodyBytes));
-        const job = await jobs.enqueue<RenderRequest>("single", payload, (item) => engine.renderSingle(item));
+        const job = await jobs.enqueue<RenderRequest>(
+          "single",
+          payload,
+          (item, signal) => engine.renderSingle(item, signal),
+        );
         sendJson(response, 202, publicJob(job, publicOrigin));
         return;
       }
@@ -234,9 +240,66 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
             `This deployment accepts at most ${config.maxBatchSize} documents per batch`,
           );
         }
-        const job = await jobs.enqueue<BatchRenderRequest>("batch", payload, (item) => engine.renderBatch(item));
+        const job = await jobs.enqueue<BatchRenderRequest>(
+          "batch",
+          payload,
+          (item, signal) => engine.renderBatch(item, signal),
+        );
         sendJson(response, 202, publicJob(job, publicOrigin));
         return;
+      }
+
+      if (method === "POST") {
+        const actionMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/(cancel|retry)$/);
+        if (actionMatch) {
+          const jobId = decodeURIComponent(actionMatch[1] || "");
+          const action = actionMatch[2];
+          const original = jobs.get(jobId);
+          if (!original) throw new HttpError(404, "job_not_found", "Render job was not found");
+
+          if (action === "cancel") {
+            const result = await jobs.cancel(jobId);
+            if (!result.cancelled || !result.job) {
+              throw new HttpError(
+                409,
+                "job_not_cancellable",
+                `A job in ${original.status} status cannot be cancelled`,
+              );
+            }
+            sendJson(response, 200, publicJob(result.job, publicOrigin));
+            return;
+          }
+
+          if (!["failed", "cancelled"].includes(original.status)) {
+            throw new HttpError(
+              409,
+              "job_not_retryable",
+              `A job in ${original.status} status cannot be retried`,
+            );
+          }
+
+          if (original.kind === "single") {
+            const payload = RenderRequestSchema.parse(original.payload);
+            const retry = await jobs.enqueue<RenderRequest>(
+              "single",
+              payload,
+              (item, signal) => engine.renderSingle(item, signal),
+              { retryOf: original.id },
+            );
+            sendJson(response, 202, publicJob(retry, publicOrigin));
+            return;
+          }
+
+          const payload = BatchRenderRequestSchema.parse(original.payload);
+          const retry = await jobs.enqueue<BatchRenderRequest>(
+            "batch",
+            payload,
+            (item, signal) => engine.renderBatch(item, signal),
+            { retryOf: original.id },
+          );
+          sendJson(response, 202, publicJob(retry, publicOrigin));
+          return;
+        }
       }
 
       if (method === "GET") {
