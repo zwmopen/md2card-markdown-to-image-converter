@@ -26,7 +26,7 @@
 cd apps/render-service
 npm install
 npx playwright install --with-deps chromium
-cp .env.example .env
+cp env.example .env
 npm run dev
 ```
 
@@ -40,10 +40,16 @@ curl http://localhost:3000/health
 
 ## 提交单篇渲染
 
+先在当前终端设置测试用 Token：
+
+```bash
+export RENDER_API_TOKEN=dev
+```
+
 ```bash
 curl -X POST http://localhost:3000/v1/render \
   -H 'content-type: application/json' \
-  -H 'authorization: Bearer replace-me' \
+  -H "authorization: Bearer $RENDER_API_TOKEN" \
   -d '{
     "markdown": "# Hello MD2Card\n\n真实 Chromium 渲染。",
     "theme": "xiaohongshu",
@@ -61,7 +67,7 @@ curl -X POST http://localhost:3000/v1/render \
 
 ```bash
 curl http://localhost:3000/v1/jobs/<jobId> \
-  -H 'authorization: Bearer replace-me'
+  -H "authorization: Bearer $RENDER_API_TOKEN"
 ```
 
 任务完成后响应包含：
@@ -77,7 +83,7 @@ curl http://localhost:3000/v1/jobs/<jobId> \
 ```bash
 curl -X POST http://localhost:3000/v1/batch \
   -H 'content-type: application/json' \
-  -H 'authorization: Bearer replace-me' \
+  -H "authorization: Bearer $RENDER_API_TOKEN" \
   -d '{
     "archiveName": "weekly-content",
     "documents": [
@@ -111,7 +117,7 @@ curl -X POST http://localhost:3000/v1/batch \
 docker build -t md2card-renderer apps/render-service
 docker run --rm --init --ipc=host \
   -p 3000:3000 \
-  -e RENDER_API_TOKEN=replace-me \
+  -e RENDER_API_TOKEN \
   -v md2card-data:/data/md2card \
   md2card-renderer
 ```
