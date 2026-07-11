@@ -29,7 +29,16 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Type-check
-        run: npm run type-check
+        shell: bash
+        run: set -o pipefail; npm run type-check 2>&1 | tee typecheck.log
+
+      - name: Upload type-check diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-service-typecheck
+          path: apps/render-service/typecheck.log
+          if-no-files-found: error
 
       - name: Run unit tests
         run: npm test
