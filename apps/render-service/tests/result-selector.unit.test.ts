@@ -37,6 +37,12 @@ function job(overrides: Partial<RenderJob> = {}): RenderJob {
   };
 }
 
+function jobWithoutResult(status: RenderJob["status"]): RenderJob {
+  const value = job({ status });
+  delete value.result;
+  return value;
+}
+
 function expectCode(callback: () => unknown, code: string): void {
   assert.throws(callback, (error: unknown) => {
     assert.ok(error instanceof ResultSelectionError);
@@ -61,13 +67,13 @@ test("auto falls back to the primary image for a single-page job", () => {
 });
 
 test("queued and running jobs report result_not_ready", () => {
-  expectCode(() => selectJobResult(job({ status: "queued", result: undefined }), "auto"), "result_not_ready");
-  expectCode(() => selectJobResult(job({ status: "running", result: undefined }), "auto"), "result_not_ready");
+  expectCode(() => selectJobResult(jobWithoutResult("queued"), "auto"), "result_not_ready");
+  expectCode(() => selectJobResult(jobWithoutResult("running"), "auto"), "result_not_ready");
 });
 
 test("failed and cancelled jobs return distinct result errors", () => {
-  expectCode(() => selectJobResult(job({ status: "failed", result: undefined }), "auto"), "result_failed");
-  expectCode(() => selectJobResult(job({ status: "cancelled", result: undefined }), "auto"), "result_cancelled");
+  expectCode(() => selectJobResult(jobWithoutResult("failed"), "auto"), "result_failed");
+  expectCode(() => selectJobResult(jobWithoutResult("cancelled"), "auto"), "result_cancelled");
 });
 
 test("explicit unavailable preferences report result_unavailable", () => {
