@@ -1,14 +1,23 @@
 import crypto from "node:crypto";
 
 import type { JobError, JobResult, RenderJob } from "./contracts.js";
+import type { JobStore } from "./job-store.js";
 import { createDownloadToken } from "./security.js";
 
 export type JobWork<TPayload> = (job: RenderJob<TPayload>) => Promise<JobResult>;
+export type JobExpiryHandler = (jobId: string) => Promise<void>;
 
 interface QueueItem<TPayload = unknown> {
   job: RenderJob<TPayload>;
   work: JobWork<TPayload>;
 }
+
+const NOOP_STORE: JobStore = {
+  async init() {},
+  async load() { return []; },
+  async save() {},
+  async remove() {},
+};
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -30,21 +39,63 @@ export class JobManager {
   readonly #queue: QueueItem[] = [];
   readonly #concurrency: number;
   readonly #ttlMs: number;
+  readonly #store: JobStore;
+  readonly #onExpire: JobExpiryHandler | undefined;
   readonly #cleanupTimer: NodeJS.Timeout;
   #active = 0;
 
-  constructor(concurrency: number, ttlMs: number) {
+  constructor(
+    concurrency: number,
+    ttlMs: number,
+    store: JobStore = NOOP_STORE,
+    onExpire?: JobExpiryHandler,
+  ) {
     this.#concurrency = Math.max(1, concurrency);
     this.#ttlMs = Math.max(60_000, ttlMs);
-    this.#cleanupTimer = setInterval(() => this.cleanupExpired(), Math.min(this.#ttlMs, 60 * 60 * 1000));
+    this.#store = store;
+    this.#onExpire = onExpire;
+    this.#cleanupTimer = setInterval(() => {
+      void this.cleanupExpired().catch((error) => {
+        console.error("Failed to clean expired render jobs", error);
+      });
+    }, Math.min(this.#ttlMs, 60 * 60 * 1000));
     this.#cleanupTimer.unref();
   }
 
-  enqueue<TPayload>(
+  async initialize(): Promise<number> {
+    await this.#store.init();
+    const persistedJobs = await this.#store.load();
+    const now = Date.now();
+    let loaded = 0;
+
+    for (const job of persistedJobs) {
+      if (Date.parse(job.expiresAt) <= now) {
+        await this.removePersistedJob(job.id);
+        continue;
+      }
+
+      if (job.status === "queued" || job.status === "running") {
+        job.status = "failed";
+        job.error = {
+          code: "renderer_restarted",
+          message: "The renderer restarted before this job completed",
+        };
+        job.updatedAt = nowIso();
+        await this.#store.save(job);
+      }
+
+      this.#jobs.set(job.id, job);
+      loaded += 1;
+    }
+
+    return loaded;
+  }
+
+  async enqueue<TPayload>(
     kind: "single" | "batch",
     payload: TPayload,
     work: JobWork<TPayload>,
-  ): RenderJob<TPayload> {
+  ): Promise<RenderJob<TPayload>> {
     const createdAt = nowIso();
     const job: RenderJob<TPayload> = {
       id: crypto.randomUUID(),
@@ -56,6 +107,7 @@ export class JobManager {
       updatedAt: createdAt,
       expiresAt: new Date(Date.now() + this.#ttlMs).toISOString(),
     };
+    await this.#store.save(job as RenderJob);
     this.#jobs.set(job.id, job as RenderJob);
     this.#queue.push({ job, work } as QueueItem);
     this.pump();
@@ -74,16 +126,22 @@ export class JobManager {
     clearInterval(this.#cleanupTimer);
   }
 
-  cleanupExpired(): number {
+  async cleanupExpired(): Promise<number> {
     const now = Date.now();
     let removed = 0;
     for (const [jobId, job] of this.#jobs) {
       if (Date.parse(job.expiresAt) <= now && !["queued", "running"].includes(job.status)) {
         this.#jobs.delete(jobId);
+        await this.removePersistedJob(jobId);
         removed += 1;
       }
     }
     return removed;
+  }
+
+  private async removePersistedJob(jobId: string): Promise<void> {
+    await this.#store.remove(jobId);
+    if (this.#onExpire) await this.#onExpire(jobId);
   }
 
   private pump(): void {
@@ -100,6 +158,7 @@ export class JobManager {
     job.status = "running";
     job.updatedAt = nowIso();
     try {
+      await this.#store.save(job);
       job.result = await work(job);
       job.status = "completed";
     } catch (error) {
@@ -107,6 +166,11 @@ export class JobManager {
       job.status = "failed";
     } finally {
       job.updatedAt = nowIso();
+      try {
+        await this.#store.save(job);
+      } catch (error) {
+        console.error("Failed to persist render job state", error);
+      }
       this.#active -= 1;
       this.pump();
     }

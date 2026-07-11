@@ -70,6 +70,10 @@ export class OutputStore {
     const data = await fs.readFile(absolutePath);
     return { data, mediaType: mediaTypeForPath(absolutePath) };
   }
+
+  async removeJob(jobId: string): Promise<void> {
+    await fs.rm(this.jobDir(jobId), { recursive: true, force: true });
+  }
 }
 
 export function extensionForFormat(format: "png" | "jpeg" | "webp"): string {

@@ -13,7 +13,10 @@
 - 自动分页、横线分页、不分页
 - 单篇多页 ZIP
 - 多文档批量 ZIP
-- 有界内存任务队列
+- 有界任务队列
+- 任务元数据原子落盘和重启恢复
+- 运行中任务在重启后明确标记为 `renderer_restarted`
+- 过期任务自动删除元数据和结果目录
 - 可配置并发、任务有效期和请求体上限
 - 可选 Bearer Token 鉴权
 - 默认禁止远程图片，避免渲染器访问内网资源
@@ -37,6 +40,8 @@ npm run dev
 ```bash
 curl http://localhost:3000/health
 ```
+
+健康响应中的 `durableJobs` 表示本地持久化已启用，`recoveredJobs` 表示本次启动恢复的任务数量。
 
 ## 提交单篇渲染
 
@@ -93,23 +98,35 @@ curl -X POST http://localhost:3000/v1/batch \
   }'
 ```
 
+## 持久化目录
+
+`OUTPUT_DIR` 同时保存结果文件和任务元数据：
+
+```text
+OUTPUT_DIR/
+├── .jobs/                 原子 JSON 任务记录，目录权限 0700、文件权限 0600
+└── <job-id>/              PNG、JPEG、WebP 和 ZIP 结果
+```
+
+任务记录包含原始请求，包括 Markdown 内容。部署时必须把 `OUTPUT_DIR` 放在受保护的持久卷中，不应作为公共静态目录暴露。
+
+服务启动时会恢复尚未过期的完成/失败任务。上次进程结束时处于 `queued` 或 `running` 的任务会转换为失败状态，错误码为 `renderer_restarted`，不会伪装成继续执行。
+
 ## 配置
 
 | 变量 | 默认值 | 说明 |
 |---|---:|---|
 | `HOST` | `0.0.0.0` | 监听地址 |
 | `PORT` | `3000` | 监听端口 |
-| `OUTPUT_DIR` | `.md2card-output` | 图片和 ZIP 目录 |
+| `OUTPUT_DIR` | `.md2card-output` | 任务元数据、图片和 ZIP 目录 |
 | `PUBLIC_BASE_URL` | 请求来源 | 对外结果 URL 前缀，生产环境应使用 HTTPS |
 | `RENDER_API_TOKEN` | 空 | MCP Worker 调用此服务的 Bearer Token |
 | `MAX_BATCH_SIZE` | `20` | 单批最大文档数 |
 | `MAX_BODY_BYTES` | `6291456` | 最大 JSON 请求体 |
 | `RENDER_CONCURRENCY` | `1` | Chromium 并发任务数 |
-| `JOB_TTL_MS` | `86400000` | 任务元数据有效期 |
+| `JOB_TTL_MS` | `86400000` | 任务和结果有效期；过期后自动清理 |
 | `RENDER_TIMEOUT_MS` | `60000` | 单次浏览器渲染超时 |
 | `ALLOW_REMOTE_IMAGES` | `false` | 是否允许公共 HTTP/HTTPS 图片 |
-
-任务与结果当前采用内存任务表和本地文件系统。进程重启后任务元数据会丢失，但已经写入磁盘的文件不会自动删除。生产化下一步是把任务状态接入 D1/数据库，把文件接入 R2/对象存储。
 
 ## Docker
 
@@ -122,7 +139,7 @@ docker run --rm --init --ipc=host \
   md2card-renderer
 ```
 
-镜像固定使用与项目依赖一致的 Playwright `1.61.0` Chromium 环境。
+持久卷 `md2card-data` 现在是恢复任务和下载结果所必需的。镜像固定使用与项目依赖一致的 Playwright `1.61.0` Chromium 环境。
 
 ## 校验
 
@@ -139,11 +156,12 @@ npx playwright install --with-deps chromium
 npm run test:render
 ```
 
-GitHub Actions 会执行 `npm run check:e2e`，只有 Chromium 真正生成多页 PNG、像素尺寸正确并生成 ZIP 才会通过。
+GitHub Actions 会执行严格类型检查、持久化/恢复测试和真实 Chromium 出图测试。只有多页 PNG、像素尺寸和 ZIP 均正确才会通过。
 
 ## 已知边界
 
-- 当前任务表尚未持久化。
+- 当前持久化面向单节点本地磁盘；多个渲染实例不能共享同一个任务队列。
 - 当前本地文件下载令牌不是长期签名 URL。
 - `mdxMode` 保留协议兼容，但尚未执行任意 MDX 组件，只会按安全 Markdown/HTML 处理。
 - 远程图片即使开启，也只做主机名级私网阻断；高安全生产环境建议通过受控图片代理抓取。
+- 横向扩展阶段仍需把任务状态接入数据库/队列，并把结果接入 R2 或其他对象存储。
