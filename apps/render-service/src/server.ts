@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { RenderServiceConfig } from "./config.js";
 import {
   BatchRenderRequestSchema,
+  ListJobsRequestSchema,
   RenderRequestSchema,
   ResultPreferenceSchema,
   type BatchRenderRequest,
@@ -13,6 +14,7 @@ import {
   type RenderedFile,
 } from "./contracts.js";
 import { FileJobStore } from "./job-store.js";
+import { InvalidJobCursorError, paginateJobs } from "./job-list.js";
 import { JobManager } from "./jobs.js";
 import { RenderEngine } from "./renderer.js";
 import { ResultSelectionError, selectJobResult } from "./result-selector.js";
@@ -97,6 +99,7 @@ function publicJob(job: RenderJob, base: string): Record<string, unknown> {
   return {
     ok: !["failed", "cancelled"].includes(job.status),
     jobId: job.id,
+    kind: job.kind,
     status: job.status,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
@@ -110,6 +113,30 @@ function publicJob(job: RenderJob, base: string): Record<string, unknown> {
         ? fileUrl(base, job, primary.relativePath)
         : null,
     files,
+    ...(job.error ? { error: job.error } : {}),
+  };
+}
+
+function publicJobSummary(job: RenderJob, base: string): Record<string, unknown> {
+  const primary = job.result?.primaryFile;
+  const archive = job.result?.archiveFile;
+  return {
+    jobId: job.id,
+    kind: job.kind,
+    status: job.status,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    expiresAt: job.expiresAt,
+    ...(job.retryOf ? { retryOf: job.retryOf } : {}),
+    statusUrl: `${base}/v1/jobs/${encodeURIComponent(job.id)}`,
+    resultManifestUrl: `${base}/v1/jobs/${encodeURIComponent(job.id)}/result`,
+    resultUrl: primary ? fileUrl(base, job, primary.relativePath) : null,
+    downloadUrl: archive
+      ? fileUrl(base, job, archive.relativePath)
+      : primary
+        ? fileUrl(base, job, primary.relativePath)
+        : null,
+    fileCount: job.result?.files.length ?? 0,
     ...(job.error ? { error: job.error } : {}),
   };
 }
@@ -140,6 +167,13 @@ function requireApiAuth(request: IncomingMessage, config: RenderServiceConfig): 
 }
 
 function sendError(response: ServerResponse, error: unknown): void {
+  if (error instanceof InvalidJobCursorError) {
+    sendJson(response, error.status, {
+      ok: false,
+      error: { code: error.code, message: error.message },
+    });
+    return;
+  }
   if (error instanceof ResultSelectionError) {
     sendJson(response, error.status, {
       ok: false,
@@ -163,7 +197,7 @@ function sendError(response: ServerResponse, error: unknown): void {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "The render request is invalid",
+        message: "The request is invalid",
         issues: error.issues,
       },
     });
@@ -208,10 +242,11 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
         sendJson(response, 200, {
           ok: true,
           service: "md2card-render-service",
-          version: "0.4.0",
+          version: "0.5.0",
           renderer: "playwright-chromium",
           durableJobs: true,
           jobControl: ["cancel", "retry"],
+          jobListing: { maxLimit: 100, cursorPagination: true },
           resultPreferences: ResultPreferenceSchema.options,
           recoveredJobs,
           maxBatchSize: config.maxBatchSize,
@@ -345,6 +380,26 @@ export async function createRenderService(config: RenderServiceConfig): Promise<
       }
 
       if (method === "GET") {
+        if (url.pathname === "/v1/jobs") {
+          const rawStatus = url.searchParams.get("status");
+          const rawLimit = url.searchParams.get("limit");
+          const rawCursor = url.searchParams.get("cursor");
+          const listRequest = ListJobsRequestSchema.parse({
+            ...(rawStatus ? { status: rawStatus } : {}),
+            ...(rawLimit ? { limit: rawLimit } : {}),
+            ...(rawCursor ? { cursor: rawCursor } : {}),
+          });
+          const page = paginateJobs(jobs.values(), listRequest);
+          sendJson(response, 200, {
+            ok: true,
+            status: listRequest.status ?? null,
+            limit: listRequest.limit,
+            items: page.items.map((job) => publicJobSummary(job, publicOrigin)),
+            nextCursor: page.nextCursor,
+          });
+          return;
+        }
+
         const resultMatch = url.pathname.match(/^\/v1\/jobs\/([^/]+)\/result$/);
         if (resultMatch) {
           const job = jobs.get(decodeURIComponent(resultMatch[1] || ""));
