@@ -8,6 +8,7 @@
 - `validate_render_request`：只校验并标准化渲染参数
 - `render_markdown`：提交单篇 Markdown 渲染
 - `batch_render`：提交最多 20 篇 Markdown 批量渲染
+- `list_jobs`：按状态列出任务摘要并用游标翻页
 - `get_job`：查询完整任务状态和文件清单
 - `download_result`：为完成任务返回规范化下载结果
 - `cancel_job`：取消排队中或运行中的任务
@@ -17,24 +18,19 @@
 
 ## 渲染后端
 
-普通 Cloudflare Worker 不能直接运行完整 Playwright Chromium，因此 MCP Worker 负责鉴权、参数校验和转发，真实渲染由 [`../render-service`](../render-service) 完成。
-
-渲染服务已经实现：
-
 ```text
 POST /v1/render
 POST /v1/batch
+GET  /v1/jobs?status=&limit=&cursor=
 GET  /v1/jobs/:jobId
 GET  /v1/jobs/:jobId/result?prefer=auto|archive|primary
 POST /v1/jobs/:jobId/cancel
 POST /v1/jobs/:jobId/retry
 ```
 
-如果未配置渲染服务，参数校验工具仍可使用；需要访问渲染器的工具会明确返回 `renderer_not_configured`，不会伪造图片或任务结果。
+如果未配置渲染服务，参数校验工具仍可使用；需要访问渲染器的工具会明确返回 `renderer_not_configured`。
 
 ## 本地联调
-
-先启动渲染服务：
 
 ```bash
 cd apps/render-service
@@ -43,8 +39,6 @@ npx playwright install --with-deps chromium
 export RENDER_API_TOKEN=dev
 npm run dev
 ```
-
-再启动 MCP Worker：
 
 ```bash
 cd apps/mcp-worker
@@ -60,20 +54,7 @@ MCP 地址：
 http://localhost:8787/mcp
 ```
 
-使用 MCP Inspector 测试：
-
-```bash
-npx @modelcontextprotocol/inspector@latest
-```
-
 ## 环境变量和密钥
-
-普通变量在 `wrangler.jsonc` 中配置：
-
-- `MAX_BATCH_SIZE`：批量上限，当前最多 20
-- `RENDER_TIMEOUT_MS`：调用渲染服务的超时时间
-
-部署前配置：
 
 ```bash
 npx wrangler secret put RENDER_API_BASE_URL
@@ -83,65 +64,51 @@ npx wrangler secret put MCP_ACCESS_TOKEN
 
 - `RENDER_API_BASE_URL` 必须使用 HTTPS，localhost 除外。
 - `RENDER_API_TOKEN` 必须与渲染服务中的同名变量一致。
-- `MCP_ACCESS_TOKEN` 可选；配置后，访问 `/mcp` 必须携带 `Authorization: Bearer <token>`。
-- 生产版最终应升级到 OAuth，而不是长期依赖共享 Token。
+- `MCP_ACCESS_TOKEN` 可选；配置后访问 `/mcp` 必须携带 Bearer Token。
 
-## 渲染流程
+## 任务列表
 
-`render_markdown` 或 `batch_render` 会先返回异步任务：
-
-```json
-{
-  "ok": true,
-  "jobId": "任务 ID",
-  "status": "queued"
-}
-```
-
-随后使用 `get_job` 查看状态。任务完成后，推荐直接调用 `download_result`：
+`list_jobs` 输入示例：
 
 ```json
 {
-  "jobId": "任务 ID",
-  "prefer": "auto"
+  "status": "failed",
+  "limit": 20
 }
 ```
 
-`prefer` 支持：
-
-- `auto`：优先 ZIP，没有 ZIP 时返回主图片。
-- `archive`：只接受 ZIP。
-- `primary`：只接受主图片。
-
-工具返回 `selected` 文件的名称、媒体类型、大小和带下载令牌的 URL，同时保留 `primary`、`archive` 和完整 `files` 清单。未完成、失败、取消或指定类型不存在时会返回稳定的渲染端错误详情。
-
-## 取消与重试
-
-`cancel_job` 和 `retry_job` 都只需要：
+返回任务摘要按创建时间从新到旧排列，不包含 Markdown 原文。若返回 `nextCursor`，下一次调用原样传回：
 
 ```json
 {
-  "jobId": "任务 ID"
+  "status": "failed",
+  "limit": 20,
+  "cursor": "上一页返回的 nextCursor"
 }
 ```
 
-取消适用于 `queued` 和 `running`。重试适用于 `failed` 和 `cancelled`，并返回新的任务 ID；新任务包含 `retryOf` 指向原任务。
+支持状态：`queued`、`running`、`completed`、`failed`、`cancelled`。游标是不可解析业务含义的稳定分页令牌；无效游标会返回 `invalid_cursor`。
 
-## 校验
+## 渲染、下载与任务控制
+
+`render_markdown` 或 `batch_render` 会先返回 `jobId`。随后可使用：
+
+- `list_jobs`：找回或筛选任务。
+- `get_job`：查看一个任务的完整状态和文件清单。
+- `download_result`：选择 ZIP 或主图片。
+- `cancel_job`：取消 queued/running。
+- `retry_job`：重试 failed/cancelled。
+
+`download_result` 的 `prefer` 支持 `auto`、`archive` 和 `primary`；`auto` 优先 ZIP，没有 ZIP 时返回主图片。
+
+## 校验与部署
 
 ```bash
 npm run check
-```
-
-该命令会生成 Workers 类型、执行 TypeScript 严格检查，并运行 Wrangler dry-run 构建。
-
-## 部署
-
-```bash
 npm run deploy
 ```
 
-部署完成后 MCP 地址通常是：
+部署完成后的 MCP 地址通常是：
 
 ```text
 https://md2card-mcp.<your-subdomain>.workers.dev/mcp
