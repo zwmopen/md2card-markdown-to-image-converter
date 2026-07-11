@@ -42,7 +42,7 @@ test("Playwright renders a long Markdown document into real PNG pages", { timeou
   const now = new Date().toISOString();
   const job: RenderJob<RenderRequest> = {
     id: "render-e2e",
-    token: "test-token",
+    token: "x",
     kind: "single",
     status: "running",
     payload,
