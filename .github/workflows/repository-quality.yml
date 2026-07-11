@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: repository-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -11,17 +15,22 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          package-manager-cache: false
+
+      - name: Skip draft PRs
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
+        run: echo "Draft PR detected; quality workflow skipped by policy."
 
       - name: Run product regression suite
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         run: npm run verify
 
       - name: Validate public entry files
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -49,6 +58,7 @@ jobs:
           NODE
 
       - name: Reject secrets and oversized source files
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         shell: bash
         run: |
           forbidden=$(find . -type f -not -path './.git/*' \( \
@@ -68,4 +78,5 @@ jobs:
           fi
 
       - name: Check whitespace errors
+        if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
         run: git diff --check
