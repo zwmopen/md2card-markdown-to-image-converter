@@ -3,6 +3,7 @@ import type {
   CancelJobRequest,
   DownloadResultRequest,
   GetJobRequest,
+  ListJobsRequest,
   RenderRequest,
   RendererResponse,
   RetryJobRequest,
@@ -125,6 +126,13 @@ export function getRenderJob(env: Env, input: GetJobRequest): Promise<RendererRe
   return requestRenderer(env, `/v1/jobs/${encodeURIComponent(input.jobId)}`, {
     method: "GET",
   });
+}
+
+export function listRenderJobs(env: Env, input: ListJobsRequest): Promise<RendererResponse> {
+  const query = new URLSearchParams({ limit: String(input.limit) });
+  if (input.status) query.set("status", input.status);
+  if (input.cursor) query.set("cursor", input.cursor);
+  return requestRenderer(env, `/v1/jobs?${query.toString()}`, { method: "GET" });
 }
 
 export function cancelRenderJob(

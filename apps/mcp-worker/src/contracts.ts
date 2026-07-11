@@ -6,6 +6,7 @@ export const ThemeModeSchema = z.enum(["light", "dark", "auto"]);
 export const SplitModeSchema = z.enum(["auto", "hr", "none"]);
 export const OutputFormatSchema = z.enum(["png", "jpeg", "webp"]);
 export const ResultPreferenceSchema = z.enum(["auto", "archive", "primary"]);
+export const JobStatusSchema = z.enum(["queued", "running", "completed", "failed", "cancelled"]);
 
 export const RenderRequestSchema = z
   .object({
@@ -49,6 +50,14 @@ export const DownloadResultRequestSchema = JobActionRequestSchema.extend({
   prefer: ResultPreferenceSchema.default("auto"),
 });
 
+export const ListJobsRequestSchema = z
+  .object({
+    status: JobStatusSchema.optional(),
+    limit: z.number().int().min(1).max(100).default(20),
+    cursor: z.string().trim().min(1).max(512).optional(),
+  })
+  .strict();
+
 export const GetJobRequestSchema = JobActionRequestSchema;
 export const CancelJobRequestSchema = JobActionRequestSchema;
 export const RetryJobRequestSchema = JobActionRequestSchema;
@@ -59,6 +68,7 @@ export type GetJobRequest = z.infer<typeof GetJobRequestSchema>;
 export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
 export type RetryJobRequest = z.infer<typeof RetryJobRequestSchema>;
 export type DownloadResultRequest = z.infer<typeof DownloadResultRequestSchema>;
+export type ListJobsRequest = z.infer<typeof ListJobsRequestSchema>;
 
 export interface RendererResponse {
   ok: boolean;
