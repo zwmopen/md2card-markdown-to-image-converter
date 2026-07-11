@@ -28,8 +28,17 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build production JavaScript
+        run: npm run build
+
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
 
-      - name: Type-check, unit test, build, and render a real PNG
-        run: npm run check:e2e
+      - name: Render a real PNG and ZIP
+        run: npm run test:render
