@@ -38,20 +38,27 @@ export const BatchRenderRequestSchema = z
   })
   .strict();
 
-export const GetJobRequestSchema = z
+export const JobActionRequestSchema = z
   .object({
     jobId: z.string().trim().min(1).max(160),
   })
   .strict();
 
+export const GetJobRequestSchema = JobActionRequestSchema;
+export const CancelJobRequestSchema = JobActionRequestSchema;
+export const RetryJobRequestSchema = JobActionRequestSchema;
+
 export type RenderRequest = z.infer<typeof RenderRequestSchema>;
 export type BatchRenderRequest = z.infer<typeof BatchRenderRequestSchema>;
 export type GetJobRequest = z.infer<typeof GetJobRequestSchema>;
+export type CancelJobRequest = z.infer<typeof CancelJobRequestSchema>;
+export type RetryJobRequest = z.infer<typeof RetryJobRequestSchema>;
 
 export interface RendererResponse {
   ok: boolean;
   jobId?: string;
   status?: string;
+  retryOf?: string;
   resultUrl?: string;
   downloadUrl?: string;
   expiresAt?: string;
