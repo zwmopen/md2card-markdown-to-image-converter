@@ -3,18 +3,22 @@ import { z } from "zod";
 
 import {
   BatchRenderRequestSchema,
+  CancelJobRequestSchema,
   DEFAULT_MAX_BATCH_SIZE,
   GetJobRequestSchema,
   RenderRequestSchema,
+  RetryJobRequestSchema,
 } from "./contracts";
 import type { Env } from "./env";
 import { parsePositiveInteger } from "./env";
 import {
   batchRender,
+  cancelRenderJob,
   getRenderJob,
   RendererConfigurationError,
   RendererRequestError,
   renderMarkdown,
+  retryRenderJob,
 } from "./render-client";
 
 function jsonToolResult(value: unknown, isError = false) {
@@ -87,7 +91,7 @@ function errorToolResult(error: unknown) {
 export function createMd2CardServer(env: Env): McpServer {
   const server = new McpServer({
     name: "MD2Card MCP",
-    version: "0.1.0",
+    version: "0.2.0",
   });
 
   server.registerTool(
@@ -101,7 +105,7 @@ export function createMd2CardServer(env: Env): McpServer {
       jsonToolResult({
         ok: true,
         service: "md2card-mcp",
-        version: "0.1.0",
+        version: "0.2.0",
         transport: "streamable-http",
         rendererConfigured: Boolean(env.RENDER_API_BASE_URL?.trim()),
         maxBatchSize: parsePositiveInteger(
@@ -115,11 +119,15 @@ export function createMd2CardServer(env: Env): McpServer {
           "render_markdown",
           "batch_render",
           "get_job",
+          "cancel_job",
+          "retry_job",
         ],
         renderContract: {
           single: "POST /v1/render",
           batch: "POST /v1/batch",
           job: "GET /v1/jobs/:jobId",
+          cancel: "POST /v1/jobs/:jobId/cancel",
+          retry: "POST /v1/jobs/:jobId/retry",
         },
       }),
   );
@@ -164,7 +172,7 @@ export function createMd2CardServer(env: Env): McpServer {
     "batch_render",
     {
       description:
-        "Submit multiple Markdown documents as one batch render job. The first release accepts at most 20 documents per call.",
+        "Submit multiple Markdown documents as one batch render job. The current release accepts at most 20 documents per call.",
       inputSchema: BatchRenderRequestSchema.shape,
     },
     async (input) => {
@@ -205,6 +213,40 @@ export function createMd2CardServer(env: Env): McpServer {
       try {
         const request = GetJobRequestSchema.parse(input);
         return jsonToolResult(await getRenderJob(env, request));
+      } catch (error) {
+        return errorToolResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "cancel_job",
+    {
+      description:
+        "Cancel a queued or running MD2Card render job. Running Chromium work is aborted and partial output is removed.",
+      inputSchema: CancelJobRequestSchema.shape,
+    },
+    async (input) => {
+      try {
+        const request = CancelJobRequestSchema.parse(input);
+        return jsonToolResult(await cancelRenderJob(env, request));
+      } catch (error) {
+        return errorToolResult(error);
+      }
+    },
+  );
+
+  server.registerTool(
+    "retry_job",
+    {
+      description:
+        "Retry a failed or cancelled MD2Card render job. Returns a new job ID linked to the original job.",
+      inputSchema: RetryJobRequestSchema.shape,
+    },
+    async (input) => {
+      try {
+        const request = RetryJobRequestSchema.parse(input);
+        return jsonToolResult(await retryRenderJob(env, request));
       } catch (error) {
         return errorToolResult(error);
       }
