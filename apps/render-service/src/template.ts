@@ -3,8 +3,22 @@ import sanitizeHtml from "sanitize-html";
 
 import type { RenderRequest } from "./contracts.js";
 
-const THEMES: Record<string, { background: string; color: string; accent: string; surface: string }> = {
-  xiaohongshu: { background: "#ffffff", color: "#242424", accent: "#ff2442", surface: "rgba(255,255,255,.94)" },
+interface ThemeDefinition {
+  background: string;
+  color: string;
+  accent: string;
+  surface: string;
+}
+
+const DEFAULT_THEME: ThemeDefinition = {
+  background: "#ffffff",
+  color: "#242424",
+  accent: "#ff2442",
+  surface: "rgba(255,255,255,.94)",
+};
+
+const THEMES: Record<string, ThemeDefinition> = {
+  xiaohongshu: DEFAULT_THEME,
   minimal: { background: "#ffffff", color: "#202124", accent: "#202124", surface: "rgba(255,255,255,.96)" },
   gradient: { background: "linear-gradient(145deg,#fff1f4,#eef4ff)", color: "#202124", accent: "#6c5ce7", surface: "rgba(255,255,255,.78)" },
   dark: { background: "#171717", color: "#f5f5f5", accent: "#9ec5ff", surface: "rgba(20,20,20,.9)" },
@@ -58,9 +72,9 @@ function cssValue(value: string): string {
 }
 
 export function buildRenderHtml(request: RenderRequest): string {
-  const requestedTheme = THEMES[request.theme] ?? THEMES.xiaohongshu;
+  const requestedTheme = THEMES[request.theme] ?? DEFAULT_THEME;
   const theme = request.themeMode === "dark" && request.theme !== "dark"
-    ? THEMES.dark
+    ? THEMES.dark ?? DEFAULT_THEME
     : requestedTheme;
   const pageHtml = request.splitMode === "hr"
     ? splitByHorizontalRule(request.markdown).map(markdownToSafeHtml)
@@ -85,7 +99,7 @@ export function buildRenderHtml(request: RenderRequest): string {
   .md2card-content img{display:block;max-width:100%;height:auto;margin:.65em auto;border-radius:8px}.md2card-content a{color:var(--card-accent);text-decoration:none}.md2card-content hr{border:0;border-top:1px solid color-mix(in srgb,var(--card-color) 20%,transparent);margin:1em 0}
   .md2card-content table{width:100%;border-collapse:collapse;margin:.8em 0;font-size:.82em}.md2card-content th,.md2card-content td{border:1px solid color-mix(in srgb,var(--card-color) 20%,transparent);padding:.38em .48em;text-align:left}.md2card-content th{background:color-mix(in srgb,var(--card-accent) 12%,transparent)}
   .page-badge{position:absolute;right:10px;bottom:8px;z-index:3;padding:3px 8px;border-radius:999px;background:var(--card-accent);color:#fff;font-size:10px;font-weight:700;opacity:.88}
-  #preload{position:fixed;left:-100000px;top:0;width:calc(var(--card-width) - 40px);visibility:hidden;pointer-events:none;font-size:16px;line-height:1.65}
+  #preload{position:fixed;inset:auto;left:-100000px;top:0;right:auto;bottom:auto;width:calc(var(--card-width) - 40px);height:auto;overflow:visible;visibility:hidden;pointer-events:none;font-size:16px;line-height:1.65}
 </style>
 </head>
 <body>
@@ -106,13 +120,14 @@ export function buildRenderHtml(request: RenderRequest): string {
     }else if(mode==='none'){
       const content=createPage();content.innerHTML=preload.innerHTML
     }else{
-      const nodes=[...preload.childNodes].filter(node=>node.nodeType!==Node.TEXT_NODE||node.textContent.trim());
-      let content=createPage();
-      for(const original of nodes){
-        const clone=original.cloneNode(true);content.appendChild(clone);
-        if(content.scrollHeight>content.clientHeight&&content.childNodes.length>1){content.removeChild(clone);content=createPage();content.appendChild(clone)}
+      const nodes=[...preload.childNodes].filter(node=>node.nodeType!==Node.TEXT_NODE||(node.textContent||'').trim());
+      if(!nodes.length){createPage()}else{
+        let content=createPage();
+        for(const original of nodes){
+          const clone=original.cloneNode(true);content.appendChild(clone);
+          if(content.scrollHeight>content.clientHeight&&content.childNodes.length>1){content.removeChild(clone);content=createPage();content.appendChild(clone)}
+        }
       }
-      if(!nodes.length) createPage();
     }
     const pages=[...document.querySelectorAll('.md2card-page')];
     pages.forEach((page,index)=>{const badge=document.createElement('div');badge.className='page-badge';badge.textContent=(index+1)+'/'+pages.length;page.appendChild(badge)});
